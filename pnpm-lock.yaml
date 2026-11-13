@@ -218,6 +218,8 @@ importers:
         specifier: 8.3.2
         version: 8.3.2(@types/node@26.6.4)(yaml@2.9.1)
 
+  packages/irodori: {}
+
   packages/rpc:
     dependencies:
       effect:

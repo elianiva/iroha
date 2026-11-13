@@ -1,0 +1,8 @@
+{
+  "name": "@template/irodori",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release",
+    "test": "cargo test --locked"
+  }
+}
