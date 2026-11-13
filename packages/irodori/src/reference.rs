@@ -178,42 +178,74 @@ fn groups(body: &[&RLine]) -> Vec<VerbGroup> {
     out
 }
 
-fn rules(body: &[&RLine]) -> Vec<ConjRule> {
-    let mut labels: Vec<f32> = body.iter().filter(|l| l.x < 150.0 && label_number(&l.t).is_some()).map(|l| l.y).collect();
-    labels.sort_by(|a, b| b.total_cmp(a));
-    let numbers: Vec<u32> = {
-        let mut v: Vec<(f32, u32)> = body.iter().filter(|l| l.x < 150.0).filter_map(|l| label_number(&l.t).map(|n| (l.y, n))).collect();
-        v.sort_by(|a, b| b.0.total_cmp(&a.0));
-        v.into_iter().map(|(_, n)| n).collect()
-    };
-    let mut endings: Vec<&&RLine> = body.iter().filter(|l| (180.0..200.0).contains(&l.x) && l.size < 9.0).collect();
-    endings.sort_by(|a, b| b.y.total_cmp(&a.y));
-    let results: Vec<(f32, String)> = body
-        .iter()
-        .filter(|l| (245.0..270.0).contains(&l.x) && l.size < 9.0 && l.t.text.starts_with('-'))
-        .map(|l| (l.y, plain(&l.t)))
-        .collect();
-    let nearest = |y: f32, ys: &mut dyn Iterator<Item = (f32, usize)>| ys.min_by(|a, b| (a.0 - y).abs().total_cmp(&(b.0 - y).abs()));
+/// A short table cell: 8.5pt, a hyphen form such as `- って`, or a bare irregular verb.
+fn is_cell(l: &RLine) -> bool {
+    l.size < 9.0 && !l.t.text.contains('→') && (l.t.text.starts_with('-') || matches!(plain(&l.t).as_str(), "する" | "来る"))
+}
 
+/// A conjugated ending: `-って`, or plain kana such as `して` and `来た`.
+fn is_form(l: &RLine) -> bool {
+    let p = plain(&l.t);
+    l.size < 9.5 && !p.is_empty() && (p.starts_with('-') || p.chars().all(|c| crate::layout::is_kana(c) || c == '来'))
+}
+
+fn rules(body: &[&RLine]) -> Vec<ConjRule> {
+    let mut numbers: Vec<(f32, u32)> = body.iter().filter(|l| l.x < 150.0).filter_map(|l| label_number(&l.t).map(|n| (l.y, n))).collect();
+    numbers.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let cells: Vec<&&RLine> = body.iter().filter(|l| is_cell(l)).collect();
+    let Some(first_x) = cells.iter().map(|l| l.x).reduce(f32::min) else { return vec![] };
+    let mut endings: Vec<&&RLine> = cells.iter().filter(|l| l.x < first_x + 6.0).copied().collect();
+    endings.sort_by(|a, b| b.y.total_cmp(&a.y));
+    let labels: Vec<f32> = numbers.iter().map(|n| n.0).collect();
     let sizes = partition(&endings.iter().map(|l| l.y).collect::<Vec<_>>(), &labels);
+
     let mut out: Vec<ConjRule> = Vec::new();
     let mut start = 0;
-    for (size, n) in sizes.iter().zip(&numbers) {
+    for (size, (_, n)) in sizes.iter().zip(&numbers) {
         for e in &endings[start..start + size] {
-            let result = nearest(e.y, &mut results.iter().enumerate().map(|(i, r)| (r.0, i))).map(|(_, i)| results[i].1.clone());
-            out.push(ConjRule { group: *n, ending: plain(&e.t), result: if e.t.text.starts_with('-') { result } else { None }, examples: vec![] });
+            let mut forms: Vec<&RLine> = body
+                .iter()
+                .filter(|c| c.x > first_x + 20.0 && c.x < first_x + 160.0 && (c.y - e.y).abs() <= 4.0 && is_form(c))
+                .copied()
+                .collect();
+            forms.sort_by(|a, b| a.x.total_cmp(&b.x));
+            out.push(ConjRule { group: *n, ending: plain(&e.t), forms: forms.iter().map(|f| plain(&f.t)).collect(), examples: vec![] });
         }
         start += size;
     }
-    for l in body.iter().filter(|l| (295.0..320.0).contains(&l.x) && l.t.text.contains('→')) {
-        let ys: Vec<(f32, usize)> = endings.iter().enumerate().map(|(i, e)| (e.y, i)).collect();
-        if let Some((y, i)) = nearest(l.y, &mut ys.iter().cloned()) {
-            if (y - l.y).abs() <= 12.0 {
-                out[i].examples.extend(pairs(&l.t));
+    // A form cell is printed once for the rows it spans, so rows without one borrow from the nearest
+    // row of the same group that has one.
+    let ys: Vec<f32> = endings.iter().map(|e| e.y).collect();
+    let have: Vec<Vec<String>> = out.iter().map(|r| r.forms.clone()).collect();
+    for i in 0..out.len() {
+        if !have[i].is_empty() {
+            continue;
+        }
+        let near = (0..out.len()).filter(|&j| !have[j].is_empty() && out[j].group == out[i].group).min_by(|&a, &b| (ys[a] - ys[i]).abs().total_cmp(&(ys[b] - ys[i]).abs()));
+        if let Some(j) = near {
+            out[i].forms = have[j].clone();
+        }
+    }
+    // Each example belongs to the ending its dictionary form ends with; the closest row wins.
+    for l in body.iter().filter(|l| l.x > first_x + 20.0 && l.t.text.contains('→') && l.size < 9.5) {
+        for p in pairs(&l.t) {
+            let from = plain(&p.from);
+            let fits = |r: &ConjRule| match r.ending.strip_prefix('-') {
+                Some(e) => from.ends_with(e),
+                None => r.ending == from,
+            };
+            let ys = |i: usize| endings_y(&endings, &sizes, i);
+            let best = (0..out.len()).filter(|&i| fits(&out[i])).min_by(|&a, &b| (ys(a) - l.y).abs().total_cmp(&(ys(b) - l.y).abs()));
+            if let Some(i) = best {
+                out[i].examples.push(p);
             }
         }
     }
     out
+}
+
+fn endings_y(endings: &[&&RLine], _sizes: &[usize], i: usize) -> f32 {
+    endings[i].y
 }
 
 pub fn sections(lines: &[RLine]) -> Vec<RefSection> {

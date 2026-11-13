@@ -1092,6 +1092,20 @@ pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>,
         format!("{head}{tail}").replace([' ', '\u{3000}', '\t'], "").replace('\u{a4}', "").trim_end_matches('課').to_string()
     });
 
+    // The cover question sits in the box under the title, set at 7.8pt (English) and about 10pt (Japanese).
+    let mut question = Block::default();
+    for l in pages.first().into_iter().flatten().filter(|l| (545.0..700.0).contains(&l.y) && (100.0..125.0).contains(&l.x) && l.size < 10.5) {
+        let t = Text::from_line(l);
+        if is_en(&t) {
+            join(&mut question.en, &t.text);
+        } else {
+            match question.ja.as_mut() {
+                Some(j) => j.push(&t),
+                None => question.ja = Some(t),
+            }
+        }
+    }
+
     let mut b = Builder::default();
     for item in items(pages) {
         b.item(item);
@@ -1133,6 +1147,7 @@ pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>,
         number,
         topic: Bilingual { ja: topic_ja, en: topic_en.into() },
         title: Bilingual { ja: title_ja, en: title_en.into() },
+        question,
         audio,
         images,
         activities: b.activities,

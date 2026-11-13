@@ -129,6 +129,8 @@ pub struct Lesson {
     pub number: u32,
     pub topic: Bilingual,
     pub title: Bilingual,
+    /// The warm-up question on the cover, such as `日本に行ったら、したい仕事がありますか？`.
+    pub question: Block,
     pub audio: Vec<AudioFile>,
     /// Pictures embedded in the PDF, extracted next to it.
     pub images: Vec<Image>,
@@ -352,8 +354,8 @@ pub struct VerbGroup {
 pub struct ConjRule {
     pub group: u32,
     pub ending: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<String>,
+    /// The forms printed next to the ending, such as `-って` and `-った` for `-う`.
+    pub forms: Vec<String>,
     pub examples: Vec<Pair>,
 }
 
