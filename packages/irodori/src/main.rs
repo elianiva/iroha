@@ -1,6 +1,7 @@
 mod layout;
 mod model;
 mod parse;
+mod reference;
 mod site;
 
 use anyhow::Context;
@@ -26,6 +27,8 @@ enum Cmd {
     },
     /// Print the layout lines of a PDF, with furigana as {reading|base}.
     Dump { pdf: PathBuf },
+    /// Print the tables pdf_oxide detects on a page (1-based).
+    Tables { pdf: PathBuf, page: usize },
 }
 
 #[tokio::main]
@@ -62,6 +65,16 @@ async fn main() -> anyhow::Result<()> {
             let json = dir.join("lesson.json");
             std::fs::write(&json, serde_json::to_string_pretty(&lesson)?)?;
             println!("wrote {}", json.display());
+        }
+        Cmd::Tables { pdf, page } => {
+            let doc = pdf_oxide::PdfDocument::open(&pdf)?;
+            for (n, t) in doc.extract_tables(page - 1)?.iter().enumerate() {
+                println!("table {n}: {} cols, bbox {:?}", t.col_count, t.bbox);
+                for r in &t.rows {
+                    let cells: Vec<String> = r.cells.iter().map(|c| format!("{}x{}:{:?}", c.rowspan, c.colspan, c.text)).collect();
+                    println!("  {}", cells.join(" | "));
+                }
+            }
         }
         Cmd::Dump { pdf } => {
             for page in layout::read_pages(pdf.to_str().context("path")?)? {

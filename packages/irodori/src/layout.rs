@@ -58,7 +58,7 @@ impl Piece {
 }
 
 pub fn is_kana(c: char) -> bool {
-    matches!(c, '\u{3040}'..='\u{30ff}' | 'ー' | ' ' | '\u{3000}')
+    matches!(c, '\u{3040}'..='\u{30ff}' | ' ' | '\u{3000}')
 }
 
 pub fn is_kanji(c: char) -> bool {

@@ -119,7 +119,7 @@ pub struct Lesson {
     pub activities: Vec<Activity>,
     /// Listening scripts printed at the end of the book, one per audio track.
     pub scripts: Vec<Dialogue>,
-    pub kanji: Vec<Step>,
+    pub kanji: Kanji,
     pub notes: Vec<Note>,
 }
 
@@ -144,6 +144,9 @@ pub struct Step {
 #[derive(Debug, Default, Serialize)]
 pub struct Task {
     pub number: u32,
+    /// What the learner does: `listen`, `choose`, `fill`, `shadow`, `repeat`, `notice`, `vocab`, `practice` or `speak`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub kind: String,
     pub instruction: Text,
     pub instruction_en: String,
     pub audio: Vec<String>,
@@ -159,8 +162,59 @@ pub struct Task {
     pub vocab: Vec<Vocab>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<Table>,
-    /// Any other Japanese on the page for this task, such as fill-in-the-blank sentences.
+    /// Pattern-practice speech bubbles, in reading order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub practice: Vec<Bubble>,
+    /// A quiz built from the task, for `choose` and `fill` tasks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quiz: Option<Quiz>,
+    /// Any other Japanese on the page for this task.
     pub body: Vec<Block>,
+}
+
+/// A speech bubble from a pattern-practice diagram. Lines are alternatives or consecutive sentences.
+#[derive(Debug, Serialize)]
+pub struct Bubble {
+    pub side: String,
+    pub lines: Vec<Text>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Question {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<Text>,
+    /// Empty for a circle-it task. The PDF has no answer key, so answers are not filled in.
+    pub options: Vec<Choice>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChooseItem {
+    /// The track to listen to.
+    pub audio: String,
+    pub questions: Vec<Question>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FillItem {
+    /// The text around the blanks; `parts.len() - 1` blanks. One part means no blank.
+    pub parts: Vec<Text>,
+    /// Every answer set found in the listening scripts, one text per blank.
+    pub answers: Vec<Vec<Text>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Quiz {
+    Choose { items: Vec<ChooseItem> },
+    Fill { items: Vec<FillItem> },
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Kanji {
+    /// Words with their readings.
+    pub words: Vec<Text>,
+    /// Practice sentences; a dialogue sentence has its lines joined by `\n`.
+    pub sentences: Vec<Text>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -188,7 +242,7 @@ pub struct Table {
     pub rows: Vec<Vec<Entry>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Choice {
     pub label: String,
     pub ja: Text,
@@ -218,10 +272,92 @@ pub struct Turn {
 
 #[derive(Debug, Default, Serialize)]
 pub struct Note {
-    /// `grammar` for the numbered grammar notes, `column` for the culture columns.
+    /// `grammar` for the numbered grammar notes, `reference` for lettered sections, `column` for culture columns.
     pub kind: String,
     pub title: Text,
+    /// Sample sentences and running text.
     pub blocks: Vec<Block>,
+    /// Explanation bullets, English with the Japanese bullet that follows it.
+    pub points: Vec<Point>,
+    /// Japanese bullets that could not be paired with an English one.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub points_ja: Vec<Text>,
+    pub examples: Vec<Example>,
+    /// Sections of a `reference` note, such as the verb groups and the テ-form rules.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sections: Vec<RefSection>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct RefSection {
+    pub title: Text,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub intro: Option<Block>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<VerbGroup>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<ConjRule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footnote: Option<Block>,
+}
+
+/// A verb group and how its verbs conjugate.
+#[derive(Debug, Default, Serialize)]
+pub struct VerbGroup {
+    pub group: u32,
+    pub stem_en: String,
+    pub stem_ja: Text,
+    pub rule_en: String,
+    pub rule_ja: Text,
+    pub examples: Vec<Pair>,
+}
+
+/// One dictionary-form ending and the form it takes, such as `-う` to `-って`.
+#[derive(Debug, Serialize)]
+pub struct ConjRule {
+    pub group: u32,
+    pub ending: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    pub examples: Vec<Pair>,
+}
+
+/// `働く (hatarak＋u) → 働きます (hatarak＋i＋ます)`.
+#[derive(Debug, Serialize)]
+pub struct Pair {
+    pub from: Text,
+    pub to: Text,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_note: Option<String>,
+    /// Set for exceptions, such as `exceptional case 例外`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Point {
+    pub en: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ja: Option<Text>,
+}
+
+/// A `［例］` example: one sentence or a short dialogue.
+#[derive(Debug, Serialize)]
+pub struct Example {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    pub turns: Vec<ExTurn>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExTurn {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    pub ja: Text,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub en: String,
 }
 
 #[cfg(test)]
