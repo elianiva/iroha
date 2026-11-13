@@ -1,9 +1,27 @@
+import { Option } from 'effect'
 import { expect, test } from 'vitest'
-import { init, Message, update } from './main.ts'
+import { AppRoute, urlToAppRoute } from './route.ts'
 
-test('the starter app updates its model through a message', () => {
-  const initial = init()
-  const result = update(initial.model, Message.ClickedContinue())
+const url = (pathname: string) => ({
+  protocol: 'https:',
+  host: 'example.test',
+  port: Option.none(),
+  pathname,
+  search: Option.none(),
+  hash: Option.none(),
+})
 
-  expect(result.model.ready).toBe(true)
+test('lesson URLs parse into routes', () => {
+  expect(urlToAppRoute(url('/'))._tag).toBe('Home')
+  expect(urlToAppRoute(url('/lesson/12'))).toMatchObject({ _tag: 'Lesson', number: 12 })
+  expect(urlToAppRoute(url('/lesson/3/activity-2'))).toMatchObject({
+    _tag: 'Section',
+    number: 3,
+    section: 'activity-2',
+  })
+  expect(urlToAppRoute(url('/lesson/banana'))._tag).toBe('NotFound')
+})
+
+test('routes are matchable', () => {
+  expect(AppRoute.Home()._tag).toBe('Home')
 })
