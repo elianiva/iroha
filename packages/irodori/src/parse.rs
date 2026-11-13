@@ -1245,6 +1245,30 @@ fn finish(task: &mut Task, last: &mut Vec<Choice>, scripts: &[Dialogue]) {
     for sub in &mut task.subtasks {
         finish(sub, last, scripts);
     }
+    split_fill(task, scripts);
+}
+
+/// A reading task can hold a `形に注目` box: `にことばを書きましょう。` and its sentences. They move
+/// into a fill subtask so they get a quiz like any other fill-in exercise.
+fn split_fill(task: &mut Task, scripts: &[Dialogue]) {
+    if task.kind == "fill" {
+        return;
+    }
+    let Some(k) = task.body.iter().position(|b| b.ja.as_ref().is_some_and(|t| t.text.starts_with("にことば"))) else { return };
+    let head = task.body[k].clone();
+    let mut sub = Task {
+        kind: "fill".into(),
+        instruction: Text { text: "＿＿にことばを書きましょう。".into(), ruby: vec![] },
+        instruction_en: head.en,
+        body: task.body[k + 1..].to_vec(),
+        ..Default::default()
+    };
+    sub.quiz = quiz_fill(&mut sub, scripts);
+    if sub.quiz.is_none() {
+        return;
+    }
+    task.body.truncate(k);
+    task.subtasks.push(sub);
 }
 
 pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>, images: Vec<Image>, pages: &[Vec<Line>]) -> Lesson {
