@@ -103,8 +103,8 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = (url) => {
     lessons: lessonQuery.init(),
     furigana: true,
     hideScripts: false,
-    menu: false,
     playing: '',
+    earned: 0,
     progress: emptyProgress,
     today: '1970-01-01',
     unit: 0,
@@ -113,22 +113,10 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = (url) => {
     checked: [],
     revealed: [],
   })
-  return then(then(index.loadIfMissing(model), loadFor), (next) =>
-    then(visit(next), (m) => ({ model: m, commands: [LoadProgress()] })),
-  )
-}
-
-/** Opening a study page (kanji, grammar, scripts) counts as doing it. */
-const visit = (model: Model): Return => {
-  if (model.route._tag !== 'Section' || model.route.section.startsWith('activity-'))
-    return { model }
-  const progress = finish(
-    model.progress,
-    `${model.route.number}.${model.route.section}`,
-    5,
-    model.today,
-  )
-  return progress === model.progress ? { model } : saved(model, progress)
+  return then(then(index.loadIfMissing(model), loadFor), (next) => ({
+    model: next,
+    commands: [LoadProgress()],
+  }))
 }
 
 const saved = (model: Model, progress: Model['progress']): Return => ({
@@ -147,9 +135,19 @@ export const update = (model: Model, message: Message): Return =>
         External: ({ href }) => ({ model, commands: [LoadExternal({ href })] }),
       }),
     ChangedUrl: ({ url }) => {
-      const next = { ...model, route: urlToAppRoute(url), menu: false, unit: 0 }
+      const next = {
+        ...model,
+        route: urlToAppRoute(url),
+        unit: 0,
+        earned: 0,
+        playing: '',
+      }
       const hash = Option.isSome(url.hash)
-      return then(then({ model: next, commands: hash ? [] : [ScrollTop()] }, loadFor), visit)
+      const commands = [
+        ...(model.playing ? [StopAudio({ id: model.playing })] : []),
+        ...(hash ? [] : [ScrollTop()]),
+      ]
+      return then({ model: next, commands }, loadFor)
     },
     Navigated: () => ({ model }),
     GotIndexMessage: ({ message }) => index.fold(model, message),
@@ -162,7 +160,6 @@ export const update = (model: Model, message: Message): Return =>
         revealed: model.revealed.filter((k) => !k.startsWith('script')),
       },
     }),
-    ToggledMenu: () => ({ model: { ...model, menu: !model.menu } }),
     ClickedPlay: ({ id, url }) =>
       model.playing === id
         ? { model: { ...model, playing: '' }, commands: [StopAudio({ id })] }
@@ -189,20 +186,40 @@ export const update = (model: Model, message: Message): Return =>
       ),
     ClickedContinue: ({ total }) => {
       const next = model.unit + 1
-      if (next < total || model.route._tag !== 'Section') return { model: { ...model, unit: next } }
+      if (next < total || model.route._tag !== 'Section')
+        return { model: { ...model, unit: next, earned: 0 } }
       // The last exercise: the page is done, and the first time it earns XP and extends the streak.
-      return saved(
-        { ...model, unit: next },
-        finish(
-          model.progress,
-          `${model.route.number}.${model.route.section}`,
-          total * 2,
-          model.today,
-        ),
+      const page = `${model.route.number}.${model.route.section}`
+      const progress = finish(model.progress, page, total * 2, model.today)
+      const earned = progress === model.progress ? 0 : total * 2
+      if (progress === model.progress) return { model: { ...model, unit: next, earned } }
+      return {
+        model: { ...model, unit: next, earned, progress },
+        commands: [SaveProgress({ progress })],
+      }
+    },
+    ClickedDone: () => {
+      if (model.route._tag !== 'Section' || model.route.section.startsWith('activity-'))
+        return { model }
+      const progress = finish(
+        model.progress,
+        `${model.route.number}.${model.route.section}`,
+        5,
+        model.today,
       )
+      return progress === model.progress ? { model } : saved(model, progress)
     },
     ClickedBack: () => ({ model: { ...model, unit: Math.max(0, model.unit - 1) } }),
-    ClickedRestart: () => ({ model: { ...model, unit: 0, checked: [] } }),
+    ClickedRestart: () => ({
+      model: {
+        ...model,
+        unit: 0,
+        earned: 0,
+        picks: {},
+        typed: {},
+        checked: [],
+      },
+    }),
     ClickedRetry: () => {
       const n = lessonOf(model.route)
       return n === undefined

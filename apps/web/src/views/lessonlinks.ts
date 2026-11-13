@@ -36,3 +36,16 @@ export const findLesson = (
   }
   return undefined
 }
+
+/** Chapter numbers become line letters: chapter 1 is line A, chapter 2 is B. */
+export const lineLetter = (chapter: number): string =>
+  String.fromCharCode(65 + ((chapter - 1) % 26))
+
+/** A station number: line letter plus its position on the line, as A01. */
+export const stationCode = (chapter: number, position: number): string =>
+  `${lineLetter(chapter)}${String(position).padStart(2, '0')}`
+
+export const lessonCode = (chapter: Chapter, n: number): string => {
+  const position = chapter.lessons.findIndex((l) => l.number === n) + 1
+  return stationCode(chapter.number, Math.max(1, position))
+}

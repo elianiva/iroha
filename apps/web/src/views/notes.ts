@@ -3,154 +3,137 @@ import { cn } from '@/lib/utils'
 import type { Note, Pair, RefSection } from '../data/types.ts'
 import { type Child, type Ctx, en, has, jp, plain } from '../ui/common.ts'
 
-/** A small colour chip; the local stand-in for the foldcn badge so notes match the rest of the app. */
-const badge = (_config: unknown, children: ReadonlyArray<Child>, h: Ctx['h']): Child =>
-  h.span([h.Class('chip')], children)
+const badge = (label: string, h: Ctx['h']): Child => h.span([h.Class('note-label')], [label])
 
 const pill = (c: Ctx, p: Pair): Child =>
   c.h.span(
-    [
-      c.h.Class(
-        'inline-flex items-baseline gap-1 rounded-md border border-[var(--line)] bg-white px-2 py-0.5 text-[15px]',
-      ),
-    ],
+    [c.h.Class('pill')],
     [
       ...jp(c.h, p.from),
-      c.h.span([c.h.Class('text-[var(--mute)]')], ['→']),
+      c.h.span([c.h.Class('arrow')], ['→']),
       ...jp(c.h, p.to),
-      p.from_note
-        ? c.h.span([c.h.Class('text-[11px] text-[var(--mute)]')], [`(${p.from_note})`])
-        : c.h.empty,
-      p.note ? c.h.span([c.h.Class('text-[11px] text-[var(--mute)]')], [p.note]) : c.h.empty,
+      p.from_note ? c.h.span([c.h.Class('pill-note')], [`(${p.from_note})`]) : c.h.empty,
+      p.note ? c.h.span([c.h.Class('pill-note')], [p.note]) : c.h.empty,
     ],
   )
 
-const th = (c: Ctx, children: ReadonlyArray<Child>): Child =>
-  c.h.th(
+const table = (c: Ctx, head: ReadonlyArray<Child>, rows: ReadonlyArray<Child>): Child =>
+  c.h.div(
+    [c.h.Class('table-wrap')],
     [
-      c.h.Class(
-        'border-2 border-[var(--line)] bg-[var(--cs)] px-3 py-1.5 text-left text-[13px] font-black',
+      c.h.table(
+        [c.h.Class('data-table')],
+        [
+          head.length
+            ? c.h.thead(
+                [],
+                [
+                  c.h.tr(
+                    [],
+                    head.map((x) => c.h.th([], [x])),
+                  ),
+                ],
+              )
+            : c.h.empty,
+          c.h.tbody([], rows),
+        ],
       ),
     ],
-    children,
-  )
-const td = (c: Ctx, children: ReadonlyArray<Child>): Child =>
-  c.h.td(
-    [c.h.Class('border-2 border-[var(--line)] bg-white px-3 py-1.5 align-top text-[15px]')],
-    children,
-  )
-const wrap = (c: Ctx, table: Child): Child =>
-  c.h.div(
-    [c.h.Class('my-2 overflow-x-auto')],
-    [c.h.table([c.h.Class('w-full border-collapse')], [table])],
   )
 
 const section = (c: Ctx, s: RefSection, key: string): Child => {
   const { h } = c
   return h.div(
-    [h.Key(key), h.Class('mt-5 flex flex-col gap-2')],
+    [h.Key(key), h.Class('note-section')],
     [
-      s.title.text ? h.h4([h.Class('text-[15px] font-semibold')], jp(h, s.title)) : h.empty,
+      s.title.text ? h.h4([], jp(h, s.title)) : h.empty,
       s.intro
-        ? h.div([], [h.p([h.Class('text-[15px]')], jp(h, s.intro.ja)), en(h, s.intro.en)])
+        ? h.div(
+            [h.Class('note-block')],
+            [h.div([h.Class('note-ja')], jp(h, s.intro.ja)), en(h, s.intro.en)],
+          )
         : h.empty,
       ...(s.groups ?? []).map((g) =>
         h.div(
-          [h.Key(`g${g.group}`), h.Class('rounded-lg border border-[var(--line)] p-3')],
+          [h.Key(`g${g.group}`), h.Class('note-group')],
           [
             h.div(
-              [h.Class('mb-1 flex flex-wrap items-baseline gap-2')],
+              [h.Class('note-group-head')],
               [
-                badge({ variant: 'outline' }, [`Group ${g.group}`], h),
+                badge(`Group ${g.group}`, h),
                 en(h, [g.stem_en, g.rule_en].filter(Boolean).join(' · ')),
               ],
             ),
-            h.p(
-              [h.Class('text-[14px] text-[var(--mute)]')],
-              [...jp(h, g.stem_ja), ' ', ...jp(h, g.rule_ja)],
-            ),
+            h.p([h.Class('note-ja')], [...jp(h, g.stem_ja), ' ', ...jp(h, g.rule_ja)]),
             h.div(
-              [h.Class('mt-2 flex flex-wrap gap-1.5')],
+              [h.Class('flex flex-wrap gap-1.5')],
               g.examples.map((p) => pill(c, p)),
             ),
           ],
         ),
       ),
       s.rules?.length
-        ? wrap(
+        ? table(
             c,
-            h.tbody(
-              [],
-              [
-                h.tr(
-                  [],
-                  ['Group', 'Dictionary form', 'Forms', 'Examples'].map((x) => th(c, [x])),
-                ),
-                ...s.rules.map((r, i) =>
-                  h.tr(
-                    [h.Key(`r${i}`)],
+            ['Group', 'Dictionary form', 'Forms', 'Examples'],
+            s.rules.map((r, i) =>
+              h.tr(
+                [h.Key(`r${i}`)],
+                [
+                  h.td([], [String(r.group)]),
+                  h.td([], [r.ending]),
+                  h.td([], [r.forms.join(' · ') || '—']),
+                  h.td(
+                    [],
                     [
-                      td(c, [String(r.group)]),
-                      td(c, [r.ending]),
-                      td(c, [r.forms.join(' · ') || '—']),
-                      td(c, [
-                        h.div(
-                          [h.Class('flex flex-wrap gap-1')],
-                          r.examples.map((p) => pill(c, p)),
-                        ),
-                      ]),
+                      h.div(
+                        [h.Class('flex flex-wrap gap-1')],
+                        r.examples.map((p) => pill(c, p)),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           )
         : h.empty,
       s.patterns?.length
-        ? wrap(
+        ? table(
             c,
-            h.tbody(
-              [],
-              s.patterns.map((r, i) =>
-                h.tr(
-                  [h.Key(`p${i}`)],
-                  [
-                    th(c, jp(h, r.pattern)),
-                    td(
-                      c,
-                      r.examples.map((e) =>
-                        h.div(
-                          [],
-                          [
-                            ...jp(h, e.ja),
-                            e.en
-                              ? h.span([h.Class('ml-2 text-[12px] text-[var(--mute)]')], [e.en])
-                              : h.empty,
-                          ],
-                        ),
+            [],
+            s.patterns.map((r, i) =>
+              h.tr(
+                [h.Key(`p${i}`)],
+                [
+                  h.th([], jp(h, r.pattern)),
+                  h.td(
+                    [],
+                    r.examples.map((e) =>
+                      h.div(
+                        [],
+                        [...jp(h, e.ja), e.en ? h.span([h.Class('en')], [` — ${e.en}`]) : h.empty],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           )
         : h.empty,
       s.grid?.length
-        ? wrap(
+        ? table(
             c,
-            h.tbody(
-              [],
-              s.grid.map((r, i) =>
-                h.tr(
-                  [h.Key(`gr${i}`)],
-                  r.map((cell) =>
-                    td(c, [
+            [],
+            s.grid.map((r, i) =>
+              h.tr(
+                [h.Key(`gr${i}`)],
+                r.map((cell) =>
+                  h.td(
+                    [],
+                    [
                       ...jp(h, cell.ja),
-                      cell.en
-                        ? h.span([h.Class('ml-2 text-[12px] text-[var(--mute)]')], [cell.en])
-                        : h.empty,
-                    ]),
+                      cell.en ? h.span([h.Class('en')], [` — ${cell.en}`]) : h.empty,
+                    ],
                   ),
                 ),
               ),
@@ -158,53 +141,45 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
           )
         : h.empty,
       s.matrix?.length
-        ? wrap(
+        ? table(
             c,
-            h.tbody(
-              [],
-              [
-                h.tr(
-                  [],
-                  [th(c, []), th(c, []), ...(s.matrix_columns ?? []).map((x) => th(c, [x]))],
-                ),
-                ...s.matrix.map((r, i) =>
-                  h.tr(
-                    [h.Key(`m${i}`)],
-                    [
-                      th(c, [r.class]),
-                      th(c, [r.polarity]),
-                      ...r.cells.map((cell, k) =>
-                        td(c, [
-                          h.div([h.Key(`mc${k}`), h.Class('font-medium')], jp(h, cell.pattern)),
-                          cell.example ? h.div([], jp(h, cell.example.ja)) : h.empty,
-                          en(h, cell.example?.en),
-                        ]),
-                      ),
-                    ],
+            ['', '', ...(s.matrix_columns ?? []).map((x) => h.span([], [x]))],
+            s.matrix.map((r, i) =>
+              h.tr(
+                [h.Key(`m${i}`)],
+                [
+                  h.th([], [r.class]),
+                  h.th([], [r.polarity]),
+                  ...r.cells.map((cell, k) =>
+                    h.td(
+                      [],
+                      [
+                        h.div([h.Key(`mc${k}`), h.Class('font-bold')], jp(h, cell.pattern)),
+                        cell.example ? h.div([], jp(h, cell.example.ja)) : h.empty,
+                        en(h, cell.example?.en, 'text-[0.72rem]'),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           )
         : h.empty,
       ...(s.sentences ?? []).map((x, i) =>
         h.div(
-          [h.Key(`s${i}`), h.Class('text-[15px]')],
+          [h.Key(`s${i}`), h.Class('note-block')],
           [
-            badge({ variant: 'secondary' }, [x.group], h),
-            ' ',
-            x.label,
-            ' ',
-            ...jp(h, x.ja),
+            h.div(
+              [h.Class('flex flex-wrap items-baseline gap-2')],
+              [badge(x.group, h), h.span([h.Class('font-bold')], [x.label])],
+            ),
+            h.div([h.Class('note-ja')], jp(h, x.ja)),
             en(h, x.en),
           ],
         ),
       ),
       s.footnote
-        ? h.div(
-            [h.Class('text-[13px] text-[var(--mute)]')],
-            [...jp(h, s.footnote.ja), ' ', s.footnote.en ?? ''],
-          )
+        ? h.div([h.Class('note-footnote')], [...jp(h, s.footnote.ja), ' ', s.footnote.en ?? ''])
         : h.empty,
     ],
   )
@@ -213,71 +188,53 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
 export const noteCard = (c: Ctx, n: Note, i: number): Child => {
   const { h } = c
   const key = `note${i}`
+  const label =
+    n.kind === 'grammar' ? `Grammar ${i + 1}` : n.kind === 'column' ? 'Culture' : 'Reference'
   return h.section(
-    [h.Key(key), h.Id(key), h.Class('card3d p-5')],
+    [h.Key(key), h.Id(key), h.Class('note')],
     [
       h.div(
-        [h.Class('mb-2 flex flex-wrap items-center gap-2')],
-        [
-          badge(
-            { variant: 'secondary' },
-            [
-              n.kind === 'grammar'
-                ? `Grammar ${i + 1}`
-                : n.kind === 'column'
-                  ? 'Culture'
-                  : 'Reference',
-            ],
-            h,
-          ),
-          h.h3([h.Class('text-[17px] leading-snug font-semibold')], jp(h, n.title)),
-        ],
+        [h.Class('note-head')],
+        [badge(label, h), h.h3([h.Class('note-title')], jp(h, n.title))],
       ),
       n.pattern?.length && plain(n.title) !== n.pattern.map(plain).join(' ')
         ? h.div(
-            [
-              h.Class(
-                'mb-2 inline-block rounded-md border-2 border-[var(--c)] px-3 py-1.5 font-semibold',
-              ),
-            ],
+            [h.Class('note-pattern')],
             n.pattern.map((p) => h.div([], jp(h, p))),
           )
         : h.empty,
       ...n.blocks.map((b, k) =>
         h.div(
-          [h.Key(`b${k}`), h.Class('mb-2')],
-          [h.p([h.Class('text-[16px] leading-relaxed')], jp(h, b.ja)), en(h, b.en)],
+          [h.Key(`b${k}`), h.Class('note-block')],
+          [h.div([h.Class('note-ja')], jp(h, b.ja)), en(h, b.en, 'note-en')],
         ),
       ),
       n.points.length
         ? h.ul(
-            [h.Class('mt-3 flex flex-col gap-2')],
+            [h.Class('note-points')],
             n.points.map((p, k) =>
               h.li(
-                [
-                  h.Key(`p${k}`),
-                  h.Class('border-l-2 border-[var(--line)] pl-3 text-[14px] leading-relaxed'),
-                ],
-                [
-                  h.div([], [p.en]),
-                  p.ja ? h.div([h.Class('text-[var(--mute)]')], jp(h, p.ja)) : h.empty,
-                ],
+                [h.Key(`p${k}`)],
+                [h.div([], [p.en]), p.ja ? h.div([h.Class('ja')], jp(h, p.ja)) : h.empty],
               ),
             ),
           )
         : h.empty,
       ...n.examples.map((e, k) =>
         h.div(
-          [h.Key(`e${k}`), h.Class('mt-3 rounded-lg bg-[var(--cs)] px-3 py-2')],
+          [h.Key(`e${k}`), h.Class('note-example')],
           e.turns.map((t, j) =>
             h.div(
-              [h.Key(`t${j}`), h.Class('py-0.5')],
+              [h.Key(`t${j}`)],
               [
-                h.div(
-                  [h.Class('text-[15px]')],
-                  [t.speaker ? `${t.speaker}： ` : '▸ ', ...jp(h, t.ja)],
+                h.p(
+                  [],
+                  [
+                    t.speaker ? h.span([h.Class('speaker')], [`${t.speaker}： `]) : h.empty,
+                    ...jp(h, t.ja),
+                  ],
                 ),
-                en(h, t.en, 'pl-5'),
+                en(h, t.en, 'pl-4'),
               ],
             ),
           ),
@@ -291,50 +248,38 @@ export const noteCard = (c: Ctx, n: Note, i: number): Child => {
 export const kanjiView = (c: Ctx): Child => {
   const { h, lesson, model } = c
   return h.div(
-    [h.Class('flex flex-col gap-6')],
+    [h.Class('study-body')],
     [
       h.div(
-        [h.Class('grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4')],
+        [h.Class('kanji-grid sm:grid-cols-3 lg:grid-cols-4')],
         lesson.kanji.words.map((w, i) => {
           const key = `kanji.${i}`
-          const flipped = has(model.revealed, key)
+          const open = has(model.revealed, key)
           return h.button(
             [
               h.Key(key),
               h.Type('button'),
-              h.AriaPressed(flipped ? 'true' : 'false'),
-              h.AriaLabel(`${plain(w)}: show reading`),
+              h.AriaPressed(open ? 'true' : 'false'),
+              h.AriaLabel(`${plain(w)}: ${open ? 'hide' : 'show'} the reading`),
               h.OnClick(Message.ToggledReveal({ key })),
-              h.Class(
-                cn(
-                  'card3d flex min-h-28 items-center justify-center p-3 text-center text-4xl font-black transition-colors',
-                  flipped
-                    ? 'border-[var(--c)] bg-[var(--cs)]'
-                    : 'border-[var(--line)] bg-white hover:bg-[var(--cs)]',
-                ),
+              h.Class(cn('kanji-card', open && 'is-open')),
+            ],
+            [
+              h.span([h.Class('kanji-furi'), h.AriaHidden(true)], ['ふ']),
+              h.span(
+                [h.Class('kanji-word')],
+                open ? jp(h, w) : [h.span([h.Lang('ja')], [plain(w)])],
               ),
             ],
-            flipped ? jp(h, w) : [plain(w)],
           )
         }),
       ),
-      h.p([h.Class('-mt-3 text-[12px] text-[var(--mute)]')], ['Tap a card to show its reading.']),
       h.div(
-        [h.Class('flex flex-col gap-2')],
+        [h.Class('reading-list')],
         [
-          h.h3([h.Class('text-[15px] font-semibold')], ['Read these']),
+          h.h3([], ['Read these']),
           ...lesson.kanji.sentences.map((s, i) =>
-            h.div(
-              [
-                h.Key(`s${i}`),
-                h.Class(
-                  'rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-[16px] leading-loose',
-                ),
-              ],
-              plain(s)
-                .split('\n')
-                .flatMap((line, k) => (k ? [h.br([]), line] : [line])),
-            ),
+            h.div([h.Key(`s${i}`), h.Class('reading-item')], jp(h, s)),
           ),
         ],
       ),

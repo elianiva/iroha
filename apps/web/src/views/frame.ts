@@ -1,59 +1,94 @@
 import { AsyncData } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
-import { cn } from '@/lib/utils'
-import { skeleton } from '@/components/ui/skeleton'
-import { Alert } from '@/components/ui/alert'
+import { TriangleAlert } from 'lucide'
+import { icon } from '@/lib/icons'
 import { indexQuery } from '../data/queries.ts'
 import { AppRoute } from '../app/route.ts'
 import { Message, type Model } from '../app/state.ts'
-import type { Child } from '../ui/common.ts'
+import { liveStreak } from '../app/progress-schema.ts'
+import { type Child, furiganaToggle } from '../ui/common.ts'
 import { homePage } from './home.ts'
 import { lessonPage } from './lesson.ts'
 import { findLesson } from './lessonlinks.ts'
-import { liveStreak } from '../app/progress-schema.ts'
 
 type H = HtmlBuilder<Message>
 
 const header = (model: Model, h: H): Child =>
   h.header(
-    [
-      h.Class(
-        'sticky top-0 z-30 border-b-2 border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur',
-      ),
-    ],
+    [h.Class('site-header')],
     [
       h.div(
-        [h.Class('mx-auto flex h-16 max-w-5xl items-center gap-3 px-4')],
+        [h.Class('shell site-header-inner')],
         [
           h.a(
-            [h.Href('/'), h.Class('flex items-center gap-2')],
+            [h.Href('/'), h.Class('brand'), h.AriaLabel('Irodori Elementary 1')],
+            [
+              h.span([h.Class('brand-mark'), h.AriaHidden(true)], ['彩']),
+              h.span(
+                [h.Class('brand-text')],
+                [
+                  h.span([h.Class('brand-name')], [h.span([h.Lang('ja')], ['いろどり'])]),
+                  h.span([h.Class('brand-sub')], ['Irodori Elementary 1']),
+                ],
+              ),
+            ],
+          ),
+          model.route._tag !== 'Home'
+            ? h.nav(
+                [h.Class('header-nav'), h.AriaLabel('Main')],
+                [h.a([h.Href('/'), h.Class('header-link')], ['Map'])],
+              )
+            : h.empty,
+          h.div(
+            [h.Class('hud')],
             [
               h.span(
                 [
-                  h.Class(
-                    'display grid size-9 place-items-center rounded-xl bg-[#ff5a4e] text-[18px] text-white shadow-[0_3px_0_#c93b31]',
-                  ),
+                  h.Class('hud-item'),
+                  h.AriaLabel(`${liveStreak(model.progress, model.today)} day streak`),
                 ],
-                ['彩'],
+                [
+                  h.b([h.Class('num')], [String(liveStreak(model.progress, model.today))]),
+                  h.span([], ['day']),
+                ],
               ),
-              h.span([h.Class('display text-[22px]')], ['Irodori']),
+              h.span([h.Class('hud-sep'), h.AriaHidden(true)], []),
+              h.span(
+                [h.Class('hud-item'), h.AriaLabel(`${model.progress.xp} XP`)],
+                [h.b([h.Class('num')], [String(model.progress.xp)]), h.span([], ['XP'])],
+              ),
+              h.span([h.Class('hud-sep'), h.AriaHidden(true)], []),
+              furiganaToggle(h, model),
             ],
           ),
-          h.div(
-            [h.Class('ml-auto flex items-center gap-2 text-[15px] font-black')],
-            [
-              h.span([h.Class('chip')], [`🔥 ${liveStreak(model.progress, model.today)}`]),
-              h.span([h.Class('chip')], [`⚡ ${model.progress.xp} XP`]),
-              h.button(
-                [
-                  h.Type('button'),
-                  h.OnClick(Message.ToggledFurigana()),
-                  h.AriaPressed(model.furigana ? 'true' : 'false'),
-                  h.Class('btn3d ghost sm'),
-                ],
-                [model.furigana ? 'ふ On' : 'ふ Off'],
-              ),
-            ],
+        ],
+      ),
+    ],
+  )
+
+const loading = (h: H): Child =>
+  h.div(
+    [h.Class('page')],
+    [
+      h.div(
+        [h.Class('loading'), h.AriaBusy(true)],
+        [h.span([h.Class('loading-mark')], []), h.span([], ['Loading lessons…'])],
+      ),
+    ],
+  )
+
+const failure = (h: H, error: string): Child =>
+  h.div(
+    [h.Class('page')],
+    [
+      h.div(
+        [h.Class('notice')],
+        [
+          h.span([h.Class('notice-icon')], [icon(h, TriangleAlert, 'size-5')]),
+          h.div([], [h.h2([], ['Lessons did not load']), h.p([], [error])]),
+          h.button(
+            [h.Type('button'), h.OnClick(Message.ClickedRetry()), h.Class('btn')],
+            ['Try again'],
           ),
         ],
       ),
@@ -74,53 +109,59 @@ export const view = (model: Model, h: H): Document => {
       data
         ? homePage(model, h, data)
         : AsyncData.matchData(indexQuery.read(model.index), {
-            onEmpty: () =>
-              h.div(
-                [h.Class('flex flex-col gap-3')],
-                [
-                  skeleton({ className: 'h-10 w-1/2' }, [], h),
-                  skeleton({ className: 'h-32 w-full' }, [], h),
-                ],
-              ),
-            onFailure: (error) =>
-              Alert(
-                { variant: 'destructive' },
-                [
-                  Alert.title({}, ['The lessons did not load'], h),
-                  Alert.description({}, [error], h),
-                ],
-                h,
-              ),
+            onEmpty: () => loading(h),
+            onFailure: (error) => failure(h, error),
             onData: () => h.empty,
           }),
     Lesson: ({ number }) => lessonPage(model, h, data, number, ''),
     Section: ({ number, section }) => lessonPage(model, h, data, number, section),
     NotFound: ({ path }) =>
       h.div(
-        [h.Class('flex flex-col items-start gap-3')],
+        [h.Class('page narrow')],
         [
-          h.h1([h.Class('text-2xl font-semibold')], ['Page not found']),
-          h.p([h.Class('text-muted-foreground')], [path]),
-          h.a([h.Href('/'), h.Class('underline underline-offset-4')], ['Back to the lessons']),
+          h.div(
+            [h.Class('notice')],
+            [
+              h.span([h.Class('notice-icon')], [icon(h, TriangleAlert, 'size-5')]),
+              h.div(
+                [],
+                [
+                  h.h1([h.Class('text-[1.6rem] font-bold')], ['Page not found']),
+                  h.p([], [`There is no page at ${path || 'this address'}.`]),
+                ],
+              ),
+              h.a([h.Href('/'), h.Class('btn')], ['Back to the line guide']),
+            ],
+          ),
         ],
       ),
   })
-  const playing = AppRoute.match(model.route, {
-    Home: () => false,
-    Lesson: () => false,
-    Section: ({ section }) => section.startsWith('activity-'),
-    NotFound: () => false,
-  })
+  const focused = model.route._tag === 'Section' && model.route.section.startsWith('activity-')
+  const section =
+    model.route._tag === 'Section'
+      ? model.route.section.startsWith('activity-')
+        ? `Activity ${model.route.section.slice('activity-'.length)}`
+        : model.route.section === 'kanji'
+          ? 'Kanji'
+          : model.route.section === 'grammar'
+            ? 'Grammar'
+            : 'Scripts'
+      : undefined
+  const title = lesson
+    ? model.route._tag === 'Section' && section
+      ? `第${lesson.number}課 · ${section} · Irodori`
+      : `第${lesson.number}課 · ${lesson.title.en} · Irodori`
+    : 'Irodori Elementary 1'
   return {
-    title: lesson ? `Lesson ${lesson.number} · ${lesson.title.en} · Irodori` : 'Irodori',
-    lang: 'ja',
+    title,
+    lang: 'en',
     body: h.div(
+      [h.Class(model.furigana ? '' : 'furigana-off')],
       [
-        h.Class(
-          cn('min-h-dvh bg-[var(--paper)] text-[var(--ink)]', model.furigana ? '' : 'furigana-off'),
-        ),
+        h.a([h.Href('#main'), h.Class('skip-link')], ['Skip to content']),
+        focused ? h.empty : header(model, h),
+        h.main([h.Id('main')], [content]),
       ],
-      [playing ? h.empty : header(model, h), h.main([], [content])],
     ),
   }
 }

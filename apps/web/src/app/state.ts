@@ -14,10 +14,10 @@ export const Model = Schema.Struct({
   furigana: Schema.Boolean,
   /** Listening scripts are blurred until tapped. */
   hideScripts: Schema.Boolean,
-  /** The navigation drawer is open on a phone. */
-  menu: Schema.Boolean,
   /** The track playing now, or an empty string. */
   playing: Schema.String,
+  /** XP earned by the activity that was just finished, for the completion screen. */
+  earned: Schema.Finite,
   /** The option picked in each choose question, by element key. */
   picks: Schema.Record(Schema.String, Schema.String),
   /** Finished pages, XP and the streak, kept in this browser. */
@@ -42,13 +42,13 @@ export const Message = defineMessageUnion({
   GotLessonMessage: { message: lessonQuery.Message },
   ToggledFurigana: {},
   ToggledScripts: {},
-  ToggledMenu: {},
   ClickedPlay: { id: Schema.String, url: Schema.String },
   StoppedAudio: { id: Schema.String },
   Picked: { key: Schema.String, value: Schema.String },
   Typed: { key: Schema.String, value: Schema.String },
   Checked: { key: Schema.String },
   ToggledReveal: { key: Schema.String },
+  ClickedDone: {},
   ClickedRetry: {},
   LoadedProgress: { progress: Progress, today: Schema.String },
   ClickedContinue: { total: Schema.Finite },

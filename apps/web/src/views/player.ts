@@ -1,97 +1,108 @@
 import type { HtmlBuilder } from 'foldkit/html'
-import { ArrowRight, Check, Flame, Languages, X } from 'lucide'
+import { ArrowRight, Check, X } from 'lucide'
 import { icon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { gate, unitsOf } from '../app/units.ts'
 import { Message, type Model } from '../app/state.ts'
+import { liveStreak } from '../app/progress-schema.ts'
 import type { Activity, Lesson } from '../data/types.ts'
-import { type Child, type Ctx, jp } from '../ui/common.ts'
+import { type Child, type Ctx, furiganaToggle, jp } from '../ui/common.ts'
 import { lessonHref, sectionLabel, sectionsOf } from './lessonlinks.ts'
 import { taskView } from './task.ts'
 
 type H = HtmlBuilder<Message>
 
-const CONFETTI = ['#58cc02', '#1cb0f6', '#ff9600', '#b86bff', '#ff4b6e', '#f5b800', '#00c2a0']
-
-const confetti = (h: H): Child =>
-  h.div(
-    [h.AriaHidden(true), h.Class('confetti pointer-events-none fixed inset-0 overflow-hidden')],
-    Array.from({ length: 36 }, (_, i) =>
-      h.i(
-        [
-          h.Key(`c${i}`),
-          h.Style({
-            left: `${(i * 97) % 100}%`,
-            background: CONFETTI[i % CONFETTI.length] ?? '#58cc02',
-            animationDelay: `${((i * 53) % 20) / 10}s`,
-            animationDuration: `${2.2 + ((i * 31) % 15) / 10}s`,
-          }),
-        ],
-        [],
-      ),
-    ),
-  )
-
-const stat = (h: H, label: string, value: string, color: string): Child =>
-  h.div(
-    [h.Class('pop flex-1 overflow-hidden rounded-2xl border-2'), h.Style({ borderColor: color })],
+const topBar = (
+  model: Model,
+  h: H,
+  lesson: Lesson,
+  activity: Activity,
+  code: string,
+  total: number,
+  complete: boolean,
+): Child => {
+  const at = complete ? total : Math.min(model.unit + 1, Math.max(1, total))
+  const pct = total === 0 ? 100 : (at / total) * 100
+  return h.header(
+    [h.Class('player-top')],
     [
       h.div(
+        [h.Class('player-top-inner')],
         [
-          h.Class(
-            'px-3 py-1 text-center text-[11px] font-black tracking-widest text-white uppercase',
+          h.a(
+            [
+              h.Href(lessonHref(lesson.number)),
+              h.Class('icon-btn'),
+              h.AriaLabel(`Leave lesson ${lesson.number}`),
+            ],
+            [icon(h, X, 'size-5')],
           ),
-          h.Style({ background: color }),
+          h.div(
+            [
+              h.Class('ride'),
+              h.Role('group'),
+              h.AriaLabel(`Exercise ${at} of ${total} in activity ${activity.number}`),
+            ],
+            [
+              h.div(
+                [h.Class('ride-head')],
+                [
+                  h.b([], [`${code || `第${lesson.number}課`} · Activity ${activity.number}`]),
+                  h.span([h.Class('ride-count')], [`${at} / ${total}`]),
+                ],
+              ),
+              h.div(
+                [h.Class('ride-line')],
+                [h.span([h.Class('ride-fill'), h.Style({ '--p': `${pct}%` })], [])],
+              ),
+            ],
+          ),
+          furiganaToggle(h, model),
         ],
-        [label],
-      ),
-      h.div(
-        [h.Class('bg-white py-3 text-center text-[26px] font-black'), h.Style({ color })],
-        [value],
       ),
     ],
   )
+}
 
 const complete = (model: Model, h: H, lesson: Lesson, activity: Activity, total: number): Child => {
   const sections = sectionsOf(lesson)
   const at = sections.findIndex((s) => s.id === `activity-${activity.number}`)
   const next = sections[at + 1]
   return h.div(
+    [h.Class('complete')],
     [
-      h.Class(
-        'relative mx-auto flex max-w-md flex-col items-center gap-6 px-4 pt-14 pb-40 text-center',
-      ),
-    ],
-    [
-      confetti(h),
-      h.div([h.Class('pop display text-[5rem] leading-none')], ['🎉']),
-      h.h1([h.Class('display text-[32px] leading-tight')], ['Activity complete!']),
-      h.p([h.Class('text-[17px] text-[var(--mute)]')], jp(h, activity.title)),
-      h.div(
-        [h.Class('flex w-full gap-3')],
+      h.div([h.Class('stamp'), h.AriaHidden(true)], ['済']),
+      h.h1([h.Class('complete-title')], [h.span([h.Lang('ja')], [`活動${activity.number} 完了`])]),
+      h.p([h.Class('complete-sub')], jp(h, activity.title)),
+      h.p(
+        [h.Class('complete-stats')],
         [
-          stat(h, 'XP', `+${total * 2}`, '#f5b800'),
-          stat(h, 'Streak', String(model.progress.streak), '#ff9600'),
-          stat(h, 'Exercises', String(total), '#1cb0f6'),
+          `+${model.earned} XP · ${total} exercises · ${liveStreak(model.progress, model.today)} day streak`,
         ],
       ),
       h.div(
-        [h.Class('flex w-full flex-col gap-3')],
+        [h.Class('complete-actions')],
         [
           h.a(
             [
               h.Href(next ? lessonHref(lesson.number, next.id) : lessonHref(lesson.number)),
-              h.Class('btn3d ok w-full'),
+              h.Class('btn full'),
             ],
             [
-              next ? `Next: ${sectionLabel(next)}` : 'Back to the lesson',
-              icon(h, ArrowRight, 'size-5'),
+              next ? `Next: ${sectionLabel(next)}` : `第${lesson.number}課`,
+              icon(h, ArrowRight, 'size-4'),
             ],
           ),
           h.button(
-            [h.Type('button'), h.OnClick(Message.ClickedRestart()), h.Class('btn3d ghost w-full')],
+            [h.Type('button'), h.OnClick(Message.ClickedRestart()), h.Class('btn secondary full')],
             ['Practice again'],
           ),
+          next
+            ? h.a(
+                [h.Href(lessonHref(lesson.number)), h.Class('btn ghost full')],
+                [`Back to 第${lesson.number}課`],
+              )
+            : h.empty,
         ],
       ),
     ],
@@ -99,32 +110,32 @@ const complete = (model: Model, h: H, lesson: Lesson, activity: Activity, total:
 }
 
 const bottomBar = (
-  model: Model,
   h: H,
   key: string,
   total: number,
+  unit: number,
   g: ReturnType<typeof gate>,
 ): Child => {
   const back =
-    model.unit > 0
+    unit > 0
       ? h.button(
-          [h.Type('button'), h.OnClick(Message.ClickedBack()), h.Class('btn3d ghost')],
+          [h.Type('button'), h.OnClick(Message.ClickedBack()), h.Class('btn ghost')],
           ['Back'],
         )
-      : h.div([], [])
-  const cont = (cls: string, label: string) =>
+      : h.span([h.Class('flex-1')], [])
+  const cont = (label: string, secondary = false) =>
     h.button(
       [
         h.Type('button'),
         h.OnClick(Message.ClickedContinue({ total })),
-        h.Class(cn('btn3d min-w-36', cls)),
+        h.Class(cn('btn min-w-[8rem]', secondary && 'ghost')),
       ],
       [label],
     )
   const inner: Child =
     g.kind === 'check'
       ? h.div(
-          [h.Class('flex items-center justify-between')],
+          [h.Class('flex w-full items-center justify-between gap-3')],
           [
             back,
             h.button(
@@ -132,7 +143,7 @@ const bottomBar = (
                 h.Type('button'),
                 h.Disabled(!g.ready),
                 h.OnClick(Message.Checked({ key })),
-                h.Class('btn3d min-w-36'),
+                h.Class('btn min-w-[8rem]'),
               ],
               ['Check'],
             ),
@@ -140,124 +151,63 @@ const bottomBar = (
         )
       : g.kind === 'result'
         ? h.div(
-            [h.Class('rise flex items-center justify-between gap-3')],
+            [h.Class('flex w-full flex-wrap items-center justify-between gap-3')],
             [
               h.div(
+                [h.Class(cn('result', g.ok ? 'ok' : 'bad'))],
                 [
-                  h.Class(
-                    cn('flex items-center gap-3', g.ok ? 'text-[#58a700]' : 'text-[#ea2b2b]'),
-                  ),
-                ],
-                [
-                  h.span(
-                    [h.Class('grid size-12 place-items-center rounded-full bg-white')],
-                    [icon(h, g.ok ? Check : X, 'size-7 stroke-[4]')],
-                  ),
+                  icon(h, g.ok ? Check : X, 'size-4'),
                   h.div(
-                    [h.Class('leading-tight')],
+                    [h.Class('min-w-0')],
                     [
-                      h.div(
-                        [h.Class('text-[20px] font-black')],
-                        [g.ok ? 'Nice work!' : 'Not quite'],
-                      ),
-                      g.ok
-                        ? h.empty
-                        : h.div([h.Class('text-[15px] font-bold')], [`Answer: ${g.answer}`]),
+                      h.div([h.Class('result-title')], [g.ok ? 'Correct' : 'Not quite']),
+                      g.ok ? h.empty : h.div([h.Class('result-answer')], [g.answer]),
                     ],
                   ),
                 ],
               ),
-              cont(g.ok ? 'ok' : 'bad', 'Continue'),
+              cont('Continue'),
             ],
           )
         : h.div(
-            [h.Class('flex items-center justify-between')],
-            [back, cont(g.label === 'Skip' ? 'ghost' : '', g.label)],
+            [h.Class('flex w-full items-center justify-between gap-3')],
+            [back, cont(g.label, g.label === 'Skip')],
           )
   return h.div(
-    [
-      h.Class(
-        cn(
-          'bar fixed inset-x-0 bottom-0 z-20 px-4 py-4 sm:py-5',
-          g.kind === 'result' && (g.ok ? 'ok' : 'bad'),
-        ),
-      ),
-    ],
-    [h.div([h.Class('mx-auto max-w-2xl')], [inner])],
+    [h.Class(cn('player-foot', g.kind === 'result' && (g.ok ? 'is-ok' : 'is-bad')))],
+    [h.div([h.Class('player-foot-inner')], [inner])],
   )
 }
 
-/** One activity as a run of single-exercise screens, a progress bar on top and the verdict at the bottom. */
-export const player = (model: Model, h: H, lesson: Lesson, activity: Activity): Child => {
+/** One activity as a run of single-exercise screens with the line and the verdict always in view. */
+export const player = (
+  model: Model,
+  h: H,
+  lesson: Lesson,
+  activity: Activity,
+  code: string,
+): Child => {
   const c: Ctx = { h, model, lesson }
   const units = unitsOf(activity)
   const total = units.length
   const done = model.unit >= total
   const unit = units[Math.min(model.unit, total - 1)]
-  const pct = total === 0 ? 100 : Math.min(100, (model.unit / total) * 100)
   return h.div(
-    [h.Class('min-h-dvh')],
+    [h.Class('player')],
     [
-      h.div(
-        [h.Class('sticky top-0 z-20 bg-[var(--paper)]/95 backdrop-blur')],
-        [
-          h.div(
-            [h.Class('mx-auto flex max-w-2xl items-center gap-3 px-4 py-4')],
-            [
-              h.a(
-                [
-                  h.Href(lessonHref(lesson.number)),
-                  h.AriaLabel('Leave the activity'),
-                  h.Class(
-                    'grid size-9 place-items-center rounded-xl text-[var(--mute)] hover:bg-black/5',
-                  ),
-                ],
-                [icon(h, X, 'size-6 stroke-[3]')],
-              ),
-              h.div(
-                [h.Class('pbar')],
-                [h.div([h.Class('pfill'), h.Style({ width: `${Math.max(pct, 4)}%` })], [])],
-              ),
-              h.button(
-                [
-                  h.Type('button'),
-                  h.AriaPressed(model.furigana ? 'true' : 'false'),
-                  h.AriaLabel('Toggle furigana'),
-                  h.OnClick(Message.ToggledFurigana()),
-                  h.Class(
-                    cn(
-                      'grid size-9 place-items-center rounded-xl border-2 transition-colors',
-                      model.furigana
-                        ? 'border-[var(--c)] bg-[var(--cs)] text-[var(--cd)]'
-                        : 'border-[var(--line)] text-[var(--mute)]',
-                    ),
-                  ),
-                ],
-                [icon(h, Languages, 'size-5')],
-              ),
-              h.span(
-                [h.Class('flex items-center gap-1 text-[16px] font-black text-[#ff9600]')],
-                [icon(h, Flame, 'size-5 fill-current'), String(model.progress.streak)],
-              ),
-            ],
-          ),
-        ],
-      ),
+      done || unit === undefined
+        ? h.empty
+        : h.h1([h.Class('sr-only')], [`Lesson ${lesson.number}, Activity ${activity.number}`]),
+      topBar(model, h, lesson, activity, code, total, done),
       done || unit === undefined
         ? complete(model, h, lesson, activity, total)
-        : h.div(
-            [h.Key(unit.key), h.Class('rise mx-auto max-w-2xl px-4 pt-4 pb-44')],
-            [
-              h.p(
-                [h.Class('mb-4 text-[13px] font-bold text-[var(--mute)]')],
-                [`${model.unit + 1} / ${total} · `, ...jp(h, unit.step.title)],
-              ),
-              taskView(c, unit.task, unit.key),
-            ],
+        : h.main(
+            [h.Class('player-main')],
+            [h.div([h.Key(unit.key)], [taskView(c, unit.task, unit.key)])],
           ),
       done || unit === undefined
         ? h.empty
-        : bottomBar(model, h, unit.key, total, gate(model, unit)),
+        : bottomBar(h, unit.key, total, model.unit, gate(model, unit)),
     ],
   )
 }
