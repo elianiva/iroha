@@ -1,3 +1,4 @@
+mod coverage;
 mod layout;
 mod model;
 mod parse;
@@ -27,6 +28,12 @@ enum Cmd {
     },
     /// Write an interactive index.html next to a lesson's lesson.json.
     Html {
+        number: u32,
+        #[arg(long, default_value = "data/elementary01")]
+        out: PathBuf,
+    },
+    /// List PDF lines whose text is missing from lesson.json, to find what the parser drops.
+    Coverage {
         number: u32,
         #[arg(long, default_value = "data/elementary01")]
         out: PathBuf,
@@ -72,6 +79,12 @@ async fn main() -> anyhow::Result<()> {
             let json = dir.join("lesson.json");
             std::fs::write(&json, serde_json::to_string_pretty(&lesson)?)?;
             println!("wrote {}", json.display());
+        }
+        Cmd::Coverage { number, out } => {
+            let dir = out.join(format!("L{number:02}"));
+            let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("lesson.json"))?)?;
+            let pdf = dir.join(format!("Y_L{number:02}.pdf"));
+            coverage::report(&json, &layout::read_pages(pdf.to_str().context("path")?)?);
         }
         Cmd::Html { number, out } => {
             let dir = out.join(format!("L{number:02}"));
