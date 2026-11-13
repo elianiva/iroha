@@ -1,254 +1,267 @@
 import { AsyncData } from 'foldkit'
-import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ArrowLeft, ArrowRight } from 'lucide'
+import type { HtmlBuilder } from 'foldkit/html'
+import { ArrowLeft, ArrowRight, BookOpen, Check, Headphones, Star } from 'lucide'
 import { icon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { badge } from '@/components/ui/badge'
-import { button } from '@/components/ui/button'
-import { Alert } from '@/components/ui/alert'
-import { skeleton } from '@/components/ui/skeleton'
 import { lessonQuery } from '../data/queries.ts'
-import type {
-  Activity,
-  BookIndex,
-  Chapter,
-  Lesson,
-  LessonSummary,
-  SectionInfo,
-} from '../data/types.ts'
+import type { BookIndex, Lesson, SectionInfo } from '../data/types.ts'
 import { Message, type Model } from '../app/state.ts'
+import { chapterClass } from '../ui/theme.ts'
 import { type Child, type Ctx, en, jp } from '../ui/common.ts'
+import { findLesson, lessonHref, sectionLabel, sectionsOf } from './lessonlinks.ts'
+import { isDone } from './path.ts'
+import { player } from './player.ts'
 import { kanjiView, noteCard } from './notes.ts'
-import { dialogueView, taskView } from './task.ts'
+import { dialogueView } from './task.ts'
 
 type H = HtmlBuilder<Message>
 
-export const lessonHref = (n: number, section?: string): string =>
-  section ? `/lesson/${n}/${section}` : `/lesson/${n}`
+const loading = (h: H): Child =>
+  h.div(
+    [h.Class('flex flex-col gap-4')],
+    [1, 2, 3].map((i) =>
+      h.div([h.Key(`s${i}`), h.Class('h-28 animate-pulse rounded-3xl bg-black/5')], []),
+    ),
+  )
 
-/** The pages of a lesson, from the lesson itself so a page never lists what it cannot show. */
-export const sectionsOf = (lesson: Lesson): ReadonlyArray<SectionInfo> => [
-  ...lesson.activities.map((a): SectionInfo => ({
-    id: `activity-${a.number}`,
-    kind: 'activity',
-    title: a.title,
-    can_do: a.can_do,
-    can_do_en: a.can_do_en,
-  })),
-  ...(lesson.kanji.words.length ? [{ id: 'kanji', kind: 'kanji' } as const] : []),
-  ...(lesson.notes.length ? [{ id: 'grammar', kind: 'grammar' } as const] : []),
-  ...(lesson.scripts.length ? [{ id: 'scripts', kind: 'scripts' } as const] : []),
-]
+const failure = (h: H, error: string): Child =>
+  h.div(
+    [h.Class('card3d flex flex-col items-start gap-3 p-6')],
+    [
+      h.h2([h.Class('display text-[22px]')], ['This lesson did not load']),
+      h.p([h.Class('text-[15px] text-[var(--mute)]')], [error]),
+      h.button(
+        [h.Type('button'), h.OnClick(Message.ClickedRetry()), h.Class('btn3d')],
+        ['Try again'],
+      ),
+    ],
+  )
 
-export const sectionLabel = (s: SectionInfo): string =>
+const back = (h: H, href: string, label: string): Child =>
+  h.a(
+    [
+      h.Href(href),
+      h.Class(
+        'inline-flex items-center gap-1.5 text-[14px] font-black tracking-wide text-[var(--mute)] uppercase hover:text-[var(--ink)]',
+      ),
+    ],
+    [icon(h, ArrowLeft, 'size-4 stroke-[3]'), label],
+  )
+
+const kindIcon = (h: H, s: SectionInfo): Child =>
   s.kind === 'activity'
-    ? `Activity ${s.id.replace('activity-', '')}`
+    ? icon(h, Star, 'size-7 fill-current')
     : s.kind === 'kanji'
-      ? '漢字'
+      ? h.span([h.Class('display text-[1.4rem]')], ['漢'])
       : s.kind === 'grammar'
-        ? 'Grammar'
-        : 'Scripts'
+        ? icon(h, BookOpen, 'size-6')
+        : icon(h, Headphones, 'size-6')
 
-export const findLesson = (
-  index: BookIndex,
+const sectionCard = (
+  h: H,
+  model: Model,
   n: number,
-): { chapter: Chapter; lesson: LessonSummary } | undefined => {
-  for (const chapter of index.chapters) {
-    const lesson = chapter.lessons.find((l) => l.number === n)
-    if (lesson) return { chapter, lesson }
-  }
-  return undefined
+  s: SectionInfo,
+  i: number,
+  current: boolean,
+): Child => {
+  const done = isDone(model, n, s.id)
+  return h.a(
+    [
+      h.Key(s.id),
+      h.Href(lessonHref(n, s.id)),
+      h.Class(cn('card3d flex items-center gap-4 p-4', current && 'border-[var(--c)]')),
+    ],
+    [
+      h.span(
+        [h.Class(cn('node shrink-0 !h-14 !w-16', !done && !current && 'todo'))],
+        [done ? icon(h, Check, 'size-7 stroke-[4]') : kindIcon(h, s)],
+      ),
+      h.div(
+        [h.Class('flex min-w-0 flex-col gap-0.5')],
+        [
+          h.span(
+            [h.Class('text-[12px] font-black tracking-widest text-[var(--c)] uppercase')],
+            [s.kind === 'activity' ? `Activity ${i + 1}` : sectionLabel(s)],
+          ),
+          s.title
+            ? h.span([h.Class('text-[19px] leading-snug font-black')], jp(h, s.title))
+            : h.empty,
+          s.kind === 'activity'
+            ? en(h, s.can_do_en)
+            : en(
+                h,
+                s.kind === 'kanji'
+                  ? 'Kanji words and reading practice'
+                  : s.kind === 'grammar'
+                    ? 'Grammar and culture notes'
+                    : 'Read the listening scripts',
+              ),
+        ],
+      ),
+      h.span(
+        [h.Class('ml-auto shrink-0 text-[var(--c)]')],
+        [icon(h, ArrowRight, 'size-6 stroke-[3]')],
+      ),
+    ],
+  )
 }
 
-const tabClass = (on: boolean): string =>
-  cn(
-    'inline-flex h-8 shrink-0 items-center rounded-lg px-3 text-[13px] font-medium whitespace-nowrap transition-colors',
-    on
-      ? 'bg-primary text-primary-foreground'
-      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-  )
-
-const tabs = (h: H, n: number, sections: ReadonlyArray<SectionInfo>, current: string): Child =>
-  h.nav(
-    [
-      h.AriaLabel('Lesson pages'),
-      h.Class(
-        'sticky top-14 z-10 -mx-4 mb-6 flex gap-1 overflow-x-auto border-b border-border bg-background/90 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6',
-      ),
-    ],
-    [
-      h.a(
-        [
-          h.Key('overview'),
-          h.Href(lessonHref(n)),
-          h.Class(tabClass(current === '')),
-          ...(current === '' ? [h.AriaCurrent('page')] : []),
-        ],
-        ['Overview'],
-      ),
-      ...sections.map((s) =>
-        h.a(
-          [
-            h.Key(s.id),
-            h.Href(lessonHref(n, s.id)),
-            h.Class(tabClass(current === s.id)),
-            ...(current === s.id ? [h.AriaCurrent('page')] : []),
-          ],
-          [sectionLabel(s)],
-        ),
-      ),
-    ],
-  )
-
-const activityBody = (c: Ctx, a: Activity): Child => {
-  const { h } = c
+const hub = (
+  model: Model,
+  h: H,
+  lesson: Lesson,
+  chapter: number | undefined,
+  topic: string,
+): Child => {
+  const sections = sectionsOf(lesson)
+  const doneCount = sections.filter((s) => isDone(model, lesson.number, s.id)).length
+  const nextIdx = sections.findIndex((s) => !isDone(model, lesson.number, s.id))
   return h.div(
     [h.Class('flex flex-col gap-6')],
     [
+      back(h, '/', 'All lessons'),
       h.div(
-        [h.Class('rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3')],
+        [
+          h.Class(
+            'relative overflow-hidden rounded-[2rem] bg-[var(--c)] p-6 text-white shadow-[0_8px_0_var(--cd)] sm:p-8',
+          ),
+        ],
         [
           h.div(
-            [h.Class('mb-1 font-mono text-[11px] tracking-wide text-amber-800 uppercase')],
-            [`Can-do ${a.can_do_id}`],
+            [
+              h.Class(
+                'display pointer-events-none absolute -top-6 -right-2 text-[11rem] leading-none text-white/15 select-none',
+              ),
+            ],
+            [String(lesson.number)],
           ),
-          h.p([h.Class('text-[16px] leading-relaxed')], jp(h, a.can_do)),
-          en(h, a.can_do_en),
+          h.p(
+            [h.Class('relative text-[13px] font-black tracking-widest uppercase opacity-90')],
+            [`Chapter ${chapter ?? ''} · ${topic}`],
+          ),
+          h.h1(
+            [h.Class('display relative mt-2 text-[34px] leading-tight sm:text-[44px]')],
+            [`第${lesson.number}課`],
+          ),
+          h.p(
+            [h.Class('relative mt-1 text-[22px] leading-snug font-black')],
+            jp(h, { text: lesson.title.ja }),
+          ),
+          h.p([h.Class('relative text-[15px] opacity-90')], [lesson.title.en]),
+          lesson.question.ja
+            ? h.div(
+                [
+                  h.Class(
+                    'relative mt-5 max-w-lg rounded-2xl rounded-tl-md bg-white p-4 text-[var(--ink)]',
+                  ),
+                ],
+                [
+                  h.p([h.Class('text-[17px] font-bold')], jp(h, lesson.question.ja)),
+                  en(h, lesson.question.en),
+                ],
+              )
+            : h.empty,
+          h.div(
+            [h.Class('relative mt-5 flex items-center gap-3')],
+            [
+              h.div(
+                [h.Class('h-3 flex-1 overflow-hidden rounded-full bg-black/15')],
+                [
+                  h.div(
+                    [
+                      h.Class('h-full rounded-full bg-white transition-all'),
+                      h.Style({ width: `${(doneCount / Math.max(1, sections.length)) * 100}%` }),
+                    ],
+                    [],
+                  ),
+                ],
+              ),
+              h.span([h.Class('text-[13px] font-black')], [`${doneCount} / ${sections.length}`]),
+            ],
+          ),
         ],
       ),
-      ...a.steps.map((s, si) =>
-        h.section(
-          [
-            h.Key(`step${si}`),
-            h.Class('rounded-xl border border-border bg-card px-4 py-3 sm:px-5'),
-          ],
-          [
-            h.div(
-              [h.Class('flex items-baseline gap-3 pb-1')],
+      h.div(
+        [h.Class('flex flex-col gap-3.5')],
+        sections.map((s, i) =>
+          sectionCard(
+            h,
+            model,
+            lesson.number,
+            s,
+            sections.filter((x) => x.kind === 'activity').indexOf(s),
+            i === nextIdx,
+          ),
+        ),
+      ),
+    ],
+  )
+}
+
+const study = (model: Model, h: H, lesson: Lesson, section: SectionInfo): Child => {
+  const c: Ctx = { h, model, lesson }
+  const sections = sectionsOf(lesson)
+  const next = sections[sections.findIndex((s) => s.id === section.id) + 1]
+  const title =
+    section.kind === 'kanji'
+      ? '漢字のことば'
+      : section.kind === 'grammar'
+        ? '文法ノート'
+        : '聴解スクリプト'
+  return h.div(
+    [h.Class('flex flex-col gap-6')],
+    [
+      back(h, lessonHref(lesson.number), `Lesson ${lesson.number}`),
+      h.div(
+        [h.Class('flex flex-col gap-1')],
+        [
+          h.span([h.Class('chip w-fit')], [sectionLabel(section)]),
+          h.h1([h.Class('display text-[32px] leading-tight')], [title]),
+        ],
+      ),
+      section.kind === 'kanji'
+        ? kanjiView(c)
+        : section.kind === 'grammar'
+          ? h.div(
+              [h.Class('flex flex-col gap-5')],
+              lesson.notes.map((nt, i) => noteCard(c, nt, i)),
+            )
+          : h.div(
+              [h.Class('flex flex-col gap-4')],
               [
-                h.span(
+                h.div(
+                  [h.Class('flex flex-wrap items-center justify-between gap-3')],
                   [
-                    h.Class(
-                      'grid size-6 shrink-0 place-items-center rounded-md bg-primary font-mono text-[12px] text-primary-foreground',
+                    en(h, 'Listen first. Tap a blurred script to read it.'),
+                    h.button(
+                      [
+                        h.Type('button'),
+                        h.OnClick(Message.ToggledScripts()),
+                        h.Class('btn3d ghost sm'),
+                      ],
+                      [model.hideScripts ? 'Show all' : 'Hide scripts'],
                     ),
                   ],
-                  [String(s.number || si + 1)],
                 ),
-                h.div(
-                  [],
-                  [
-                    h.h3([h.Class('text-[17px] leading-snug font-semibold')], jp(h, s.title)),
-                    en(h, s.title_en),
-                  ],
-                ),
+                ...lesson.scripts.map((d, i) => dialogueView(c, d, `script${i}`, true)),
               ],
             ),
-            ...s.tasks.map((t, ti) => taskView(c, t, `a${a.number}.s${si}.t${ti}`)),
-          ],
-        ),
-      ),
-    ],
-  )
-}
-
-const scriptsBody = (c: Ctx): Child => {
-  const { h, lesson, model } = c
-  return h.div(
-    [h.Class('flex flex-col gap-3')],
-    [
-      h.div(
-        [h.Class('flex flex-wrap items-center justify-between gap-2')],
+      h.a(
         [
-          en(h, 'Listening scripts. Hide them to listen first, then tap one to read it.'),
-          button(
-            { size: 'sm', variant: 'outline', onClick: Message.ToggledScripts() },
-            model.hideScripts ? 'Show all scripts' : 'Hide scripts',
-            h,
-          ),
+          h.Href(next ? lessonHref(lesson.number, next.id) : lessonHref(lesson.number)),
+          h.Class('btn3d ok mt-2 w-full'),
+        ],
+        [
+          next ? `Next: ${sectionLabel(next)}` : 'Back to the lesson',
+          icon(h, ArrowRight, 'size-5'),
         ],
       ),
-      ...lesson.scripts.map((d, i) => dialogueView(c, d, `script${i}`, true)),
     ],
   )
 }
 
-const overview = (c: Ctx, sections: ReadonlyArray<SectionInfo>): Child => {
-  const { h, lesson } = c
-  const card = (s: SectionInfo, i: number): Child =>
-    h.a(
-      [
-        h.Key(s.id),
-        h.Href(lessonHref(lesson.number, s.id)),
-        h.Class(
-          'group flex flex-col gap-1 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/60',
-        ),
-      ],
-      [
-        h.div(
-          [h.Class('flex items-center gap-2')],
-          [
-            badge(
-              { variant: s.kind === 'activity' ? 'default' : 'secondary' },
-              [sectionLabel(s)],
-              h,
-            ),
-            s.kind === 'activity'
-              ? h.span(
-                  [h.Class('text-[12px] text-muted-foreground')],
-                  [`${i + 1} of ${sections.filter((x) => x.kind === 'activity').length}`],
-                )
-              : h.empty,
-          ],
-        ),
-        s.title
-          ? h.span([h.Class('mt-1 text-[16px] leading-snug font-medium')], jp(h, s.title))
-          : h.empty,
-        s.can_do
-          ? h.span([h.Class('text-[13px] leading-snug text-muted-foreground')], [s.can_do_en ?? ''])
-          : h.empty,
-        s.kind === 'kanji'
-          ? en(h, 'Kanji words and reading practice')
-          : s.kind === 'grammar'
-            ? en(h, `${lesson.notes.length} grammar and culture notes`)
-            : s.kind === 'scripts'
-              ? en(h, `${lesson.scripts.length} listening scripts`)
-              : h.empty,
-      ],
-    )
-  return h.div([h.Class('grid grid-cols-1 gap-3 sm:grid-cols-2')], sections.map(card))
-}
-
-const sibling = (
-  h: H,
-  label: string,
-  n: number,
-  title: string,
-  section: string | undefined,
-  dir: 'prev' | 'next',
-): Child =>
-  h.a(
-    [
-      h.Href(lessonHref(n, section)),
-      h.Class(
-        cn(
-          'flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/60',
-          dir === 'next' && 'justify-end text-right',
-        ),
-      ),
-    ],
-    [
-      dir === 'prev' ? icon(h, ArrowLeft, 'size-4 shrink-0') : h.empty,
-      h.div(
-        [h.Class('min-w-0')],
-        [
-          h.div([h.Class('text-[11px] text-muted-foreground')], [label]),
-          h.div([h.Class('truncate text-[14px] font-medium')], [title]),
-        ],
-      ),
-      dir === 'next' ? icon(h, ArrowRight, 'size-4 shrink-0') : h.empty,
-    ],
-  )
-
+/** The lesson hub, a study page, or the player, once the lesson has loaded. */
 export const lessonPage = (
   model: Model,
   h: H,
@@ -258,108 +271,43 @@ export const lessonPage = (
 ): Child => {
   const found = index ? findLesson(index, n) : undefined
   const data = lessonQuery.read(model.lessons, { number: n })
-  const retry = Message.ClickedRetry()
-  return AsyncData.matchData(data, {
-    onEmpty: () =>
-      h.div(
-        [h.Class('flex flex-col gap-4')],
-        [
-          skeleton({ className: 'h-24 w-full' }, [], h),
-          skeleton({ className: 'h-8 w-2/3' }, [], h),
-          skeleton({ className: 'h-64 w-full' }, [], h),
-        ],
-      ),
-    onFailure: (error) =>
-      h.div(
-        [h.Class('flex flex-col items-start gap-3')],
-        [
-          Alert(
-            { variant: 'destructive' },
-            [Alert.title({}, ['This lesson did not load'], h), Alert.description({}, [error], h)],
-            h,
-          ),
-          button({ variant: 'outline', onClick: retry }, 'Try again', h),
-        ],
-      ),
-    onData: (lesson: Lesson): Html => {
-      const c: Ctx = { h, model, lesson }
-      const sections = sectionsOf(lesson)
-      const at = sections.findIndex((s) => s.id === current)
-      const known = current === '' || at >= 0
-      const section = at >= 0 ? sections[at] : undefined
-      const order: ReadonlyArray<string> = ['', ...sections.map((s) => s.id)]
-      const pos = order.indexOf(known ? current : '')
-      const nextId = order[pos + 1]
-      const prevId = pos > 0 ? order[pos - 1] : undefined
-      const label = (id: string | undefined): string =>
-        id === undefined
-          ? ''
-          : id === ''
-            ? 'Overview'
-            : sectionLabel(sections.find((s) => s.id === id)!)
-      const body: Child = !known
-        ? h.p([h.Class('text-muted-foreground')], ['This lesson has no such page.'])
-        : section === undefined
-          ? overview(c, sections)
-          : section.kind === 'activity'
-            ? activityBody(c, lesson.activities[at]!)
-            : section.kind === 'kanji'
-              ? kanjiView(c)
-              : section.kind === 'grammar'
-                ? h.div(
-                    [h.Class('flex flex-col gap-4')],
-                    lesson.notes.map((nt, i) => noteCard(c, nt, i)),
-                  )
-                : scriptsBody(c)
-      return h.div(
-        [h.Class('flex flex-col')],
-        [
-          h.div(
-            [h.Class('mb-5 flex flex-col gap-1')],
+  const colour = chapterClass(found?.chapter.number ?? 1)
+  return h.div(
+    [h.Class(colour)],
+    [
+      AsyncData.matchData(data, {
+        onEmpty: () => h.div([h.Class('mx-auto max-w-2xl px-4 py-8')], [loading(h)]),
+        onFailure: (error) => h.div([h.Class('mx-auto max-w-2xl px-4 py-8')], [failure(h, error)]),
+        onData: (lesson: Lesson) => {
+          const section = sectionsOf(lesson).find((s) => s.id === current)
+          if (current !== '' && section === undefined)
+            return h.div(
+              [h.Class('mx-auto max-w-2xl px-4 py-8')],
+              [
+                back(h, lessonHref(n), `Lesson ${n}`),
+                h.p([h.Class('mt-4')], ['This lesson has no such page.']),
+              ],
+            )
+          if (section?.kind === 'activity') {
+            const activity = lesson.activities.find((a) => `activity-${a.number}` === section.id)
+            return activity ? player(model, h, lesson, activity) : h.empty
+          }
+          return h.div(
+            [h.Class('mx-auto max-w-2xl px-4 py-8 pb-24')],
             [
-              h.p(
-                [h.Class('text-[13px] text-muted-foreground')],
-                [
-                  found ? `Chapter ${found.chapter.number} · ` : '',
-                  ...jp(h, { text: lesson.topic.ja }),
-                  ` · ${lesson.topic.en}`,
-                ],
-              ),
-              h.h1(
-                [h.Class('text-[28px] leading-tight font-semibold tracking-tight sm:text-[32px]')],
-                [`第${lesson.number}課　`, ...jp(h, { text: lesson.title.ja })],
-              ),
-              en(h, lesson.title.en, 'text-[15px]'),
+              section
+                ? study(model, h, lesson, section)
+                : hub(
+                    model,
+                    h,
+                    lesson,
+                    found?.chapter.number,
+                    found?.chapter.topic.en ?? lesson.topic.en,
+                  ),
             ],
-          ),
-          lesson.question.ja && current === ''
-            ? h.div(
-                [h.Class('mb-6 rounded-xl border border-border bg-muted/50 px-4 py-3')],
-                [
-                  h.p([h.Class('text-[17px]')], jp(h, lesson.question.ja)),
-                  en(h, lesson.question.en),
-                ],
-              )
-            : h.empty,
-          tabs(h, lesson.number, sections, known ? current : ''),
-          body,
-          h.div(
-            [h.Class('mt-8 flex gap-3')],
-            [
-              prevId !== undefined
-                ? sibling(h, 'Previous', n, label(prevId), prevId || undefined, 'prev')
-                : found && found.lesson.number > 1
-                  ? sibling(h, 'Previous lesson', n - 1, `Lesson ${n - 1}`, undefined, 'prev')
-                  : h.div([h.Class('flex-1')], []),
-              nextId !== undefined
-                ? sibling(h, 'Next', n, label(nextId), nextId, 'next')
-                : index && findLesson(index, n + 1)
-                  ? sibling(h, 'Next lesson', n + 1, `Lesson ${n + 1}`, undefined, 'next')
-                  : h.div([h.Class('flex-1')], []),
-            ],
-          ),
-        ],
-      )
-    },
-  })
+          )
+        },
+      }),
+    ],
+  )
 }
