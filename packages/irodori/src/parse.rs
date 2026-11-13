@@ -836,7 +836,7 @@ fn finish(task: &mut Task, last: &mut Vec<Choice>, scripts: &[Dialogue]) {
     }
 }
 
-pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>, pages: &[Vec<Line>]) -> Lesson {
+pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>, images: Vec<Image>, pages: &[Vec<Line>]) -> Lesson {
     // The running header on page 2 repeats the Japanese topic and lesson title.
     let header = |f: &dyn Fn(&Line) -> Option<String>| pages.get(1).and_then(|p| p.iter().find_map(f)).unwrap_or_default();
     let topic_ja = header(&|l| l.text.strip_prefix("▶トピック").map(|r| r.trim().to_string()));
@@ -882,6 +882,7 @@ pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>,
         topic: Bilingual { ja: topic_ja, en: topic_en.into() },
         title: Bilingual { ja: title_ja, en: title_en.into() },
         audio,
+        images,
         activities: b.activities,
         scripts: b.scripts,
         kanji: b.kanji,

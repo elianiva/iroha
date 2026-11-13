@@ -61,7 +61,8 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let pages = layout::read_pages(pdf.to_str().context("path")?)?;
-            let lesson = parse::parse(number, &meta.topic, &meta.title, audio, &pages);
+            let images = layout::extract_images(pdf.to_str().context("path")?, &dir.join("images"))?;
+            let lesson = parse::parse(number, &meta.topic, &meta.title, audio, images, &pages);
             let json = dir.join("lesson.json");
             std::fs::write(&json, serde_json::to_string_pretty(&lesson)?)?;
             println!("wrote {}", json.display());

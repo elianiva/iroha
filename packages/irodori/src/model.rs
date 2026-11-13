@@ -110,12 +110,28 @@ pub struct AudioFile {
     pub url: String,
 }
 
+/// A picture from the PDF. `file` is relative to the lesson folder; the box is in PDF points,
+/// with the origin at the bottom left of the page, like the line positions.
+#[derive(Debug, Clone, Serialize)]
+pub struct Image {
+    pub page: usize,
+    pub file: String,
+    pub width: u32,
+    pub height: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Lesson {
     pub number: u32,
     pub topic: Bilingual,
     pub title: Bilingual,
     pub audio: Vec<AudioFile>,
+    /// Pictures embedded in the PDF, extracted next to it.
+    pub images: Vec<Image>,
     pub activities: Vec<Activity>,
     /// Listening scripts printed at the end of the book, one per audio track.
     pub scripts: Vec<Dialogue>,
@@ -189,7 +205,8 @@ pub struct Question {
 
 #[derive(Debug, Serialize)]
 pub struct ChooseItem {
-    /// The track to listen to.
+    /// The track to listen to; empty for reading tasks.
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub audio: String,
     pub questions: Vec<Question>,
 }

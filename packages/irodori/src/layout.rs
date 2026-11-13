@@ -190,3 +190,24 @@ fn attach(page: usize, group: Vec<Piece>, ruby: &[Piece]) -> Line {
     }
     Line { page, x, y, size, text, ruby: merged }
 }
+
+/// Saves the pictures of every page as PNGs under `dir` and lists them. Tiny icons are skipped.
+pub fn extract_images(path: &str, dir: &std::path::Path) -> anyhow::Result<Vec<crate::model::Image>> {
+    let doc = PdfDocument::open(path)?;
+    std::fs::create_dir_all(dir)?;
+    let mut out = Vec::new();
+    for p in 0..doc.page_count()? {
+        let mut n = 0;
+        for img in doc.extract_images(p)? {
+            if img.width() < 40 || img.height() < 40 {
+                continue;
+            }
+            n += 1;
+            let file = format!("p{:02}_{n}.png", p + 1);
+            img.save_as_png(dir.join(&file))?;
+            let b = img.bbox().copied().unwrap_or(pdf_oxide::geometry::Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 });
+            out.push(crate::model::Image { page: p + 1, file: format!("images/{file}"), width: img.width(), height: img.height(), x: b.x, y: b.y, w: b.width, h: b.height });
+        }
+    }
+    Ok(out)
+}
