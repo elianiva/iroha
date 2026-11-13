@@ -189,6 +189,9 @@ pub struct Task {
     /// A quiz built from the task, for `choose` and `fill` tasks.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quiz: Option<Quiz>,
+    /// Callout questions that point at the grammar notes.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hints: Vec<Block>,
     /// Any other Japanese on the page for this task.
     pub body: Vec<Block>,
 }
@@ -245,7 +248,7 @@ pub struct Kanji {
     pub sentences: Vec<Text>,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct Block {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ja: Option<Text>,
@@ -290,7 +293,7 @@ pub struct Vocab {
     pub en: String,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct Dialogue {
     /// Audio track id, when the PDF prints one next to the dialogue.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -298,7 +301,7 @@ pub struct Dialogue {
     pub turns: Vec<Turn>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Turn {
     pub speaker: String,
     pub text: Text,
@@ -334,8 +337,17 @@ pub struct RefSection {
     pub groups: Vec<VerbGroup>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<ConjRule>,
+    /// Sentence patterns with example phrases, for `～んです`-style boxes.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub patterns: Vec<PatternRow>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footnote: Option<Block>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PatternRow {
+    pub pattern: Text,
+    pub examples: Vec<Block>,
 }
 
 /// A verb group and how its verbs conjugate.

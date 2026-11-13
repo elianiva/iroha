@@ -248,6 +248,39 @@ fn endings_y(endings: &[&&RLine], _sizes: &[usize], i: usize) -> f32 {
     endings[i].y
 }
 
+fn is_latin(t: &Text) -> bool {
+    let alpha = t.text.chars().filter(|c| c.is_ascii_alphabetic()).count();
+    alpha >= 4 && t.text.chars().all(|c| c.is_ascii() || matches!(c, '’' | '“' | '”'))
+}
+
+/// A table of sentence patterns (`V-たんです`) with example phrases and their English, such as
+/// the box that opens the ～んです reference. Returns the rows and which lines they used.
+fn patterns(ls: &[&RLine]) -> Option<(Vec<PatternRow>, Vec<usize>)> {
+    let starts = |t: &Text| t.text.chars().next().is_some_and(|c| matches!(c, 'N' | 'S' | 'V' | 'ナ' | 'イ'));
+    let cand = |l: &RLine| (8.0..9.0).contains(&l.size) && !is_latin(&l.t);
+    let min_x = ls.iter().filter(|l| cand(l) && starts(&l.t) && !l.t.text.contains('→')).map(|l| l.x).reduce(f32::min)?;
+    let pats: Vec<usize> = (0..ls.len()).filter(|&i| cand(ls[i]) && starts(&ls[i].t) && ls[i].x < min_x + 6.0).collect();
+    if pats.len() < 3 {
+        return None;
+    }
+    let mut rows: Vec<PatternRow> = pats.iter().map(|&i| PatternRow { pattern: ls[i].t.clone(), examples: vec![] }).collect();
+    let mut used = pats.clone();
+    for (i, l) in ls.iter().enumerate() {
+        if !cand(l) || l.x < min_x + 30.0 || used.contains(&i) {
+            continue;
+        }
+        let Some(k) = (0..pats.len()).filter(|&k| (ls[pats[k]].y - l.y).abs() <= 12.0).min_by(|&a, &b| (ls[pats[a]].y - l.y).abs().total_cmp(&(ls[pats[b]].y - l.y).abs())) else { continue };
+        // The English gloss sits right under its phrase, in the same column, in a smaller size.
+        let gloss = (0..ls.len()).find(|&j| ls[j].size < 8.0 && is_latin(&ls[j].t) && (ls[j].x - l.x).abs() < 6.0 && l.y - ls[j].y > 0.0 && l.y - ls[j].y < 14.0);
+        if let Some(j) = gloss {
+            used.push(j);
+        }
+        used.push(i);
+        rows[k].examples.push(Block { ja: Some(l.t.clone()), en: gloss.map(|j| ls[j].t.text.trim().to_string()).unwrap_or_default(), at: None });
+    }
+    Some((rows, used))
+}
+
 pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
     let is_heading = |l: &RLine| l.x < 95.0 && (8.0..9.0).contains(&l.size) && l.t.text.chars().next().is_some_and(|c| c.is_ascii_digit()) && l.t.text.chars().nth(1) == Some('.');
     let mut chunks: Vec<(Option<&RLine>, Vec<&RLine>)> = vec![(None, vec![])];
@@ -275,11 +308,21 @@ pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
                 None => (rest.into_iter().filter(|l| l.y < top - 14.0).collect(), vec![]),
             };
             let by_conjugation = ls.iter().any(|l| plain(&l.t) == "conjugationrules");
+            let rules = if has_table && !by_conjugation { rules(&body) } else { vec![] };
+            let (patterns, intro) = match (rules.is_empty() && !by_conjugation, patterns(&ls)) {
+                (true, Some((rows, used))) => {
+                    let header_word = |l: &RLine| is_latin(&l.t) && l.t.text.split_whitespace().count() <= 2 && !l.t.text.contains('.');
+                    let keep = intro.into_iter().filter(|l| !ls.iter().position(|x| std::ptr::eq(*x, *l)).is_some_and(|i| used.contains(&i)) && !header_word(l));
+                    (rows, keep.collect())
+                }
+                _ => (vec![], intro),
+            };
             RefSection {
                 title: h.map(|h| h.t.clone()).unwrap_or_default(),
                 intro: bilingual(&intro),
                 groups: if has_table && by_conjugation { groups(&body) } else { vec![] },
-                rules: if has_table && !by_conjugation { rules(&body) } else { vec![] },
+                rules,
+                patterns,
                 footnote: bilingual(&footnote),
             }
         })
