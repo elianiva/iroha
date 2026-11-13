@@ -319,6 +319,12 @@
         font-weight: 600;
         margin: 6px 0;
       }
+      .hintbox {
+        background: #e8eaf3;
+        border-radius: 8px;
+        padding: 6px 10px;
+        margin: 8px 0;
+      }
       ul.pts {
         padding-left: 18px;
         margin: 6px 0;
@@ -664,6 +670,16 @@
           el.append(chooseQuiz(t.quiz))
         }
         if (t.quiz?.type === 'fill') el.append(fillQuiz(t.quiz))
+        ;(t.hints || []).forEach((b) =>
+          el.append(
+            h(
+              'div',
+              { class: 'hintbox' },
+              b.ja ? jp(b.ja) : null,
+              b.en ? h('div', { class: 'en' }, b.en) : null,
+            ),
+          ),
+        )
         ;(t.subtasks || []).forEach((s) => el.append(task(s, depth + 1)))
         return el
       }
@@ -881,6 +897,31 @@
                                   ' → ',
                                   jp(p.to),
                                   p.note ? h('span', { class: 'en' }, ` ${p.note}`) : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
+                  (s.patterns || []).length
+                    ? h(
+                        'table',
+                        {},
+                        s.patterns.map((r) =>
+                          h(
+                            'tr',
+                            {},
+                            h('th', {}, jp(r.pattern)),
+                            h(
+                              'td',
+                              {},
+                              r.examples.map((e) =>
+                                h(
+                                  'div',
+                                  {},
+                                  jp(e.ja),
+                                  e.en ? h('span', { class: 'en' }, '  ' + e.en) : null,
                                 ),
                               ),
                             ),
