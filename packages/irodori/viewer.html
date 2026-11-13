@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Irodori</title>
+    <style>
+      :root {
+        --ink: #1d2430;
+        --mute: #6b7585;
+        --line: #dfe3ea;
+        --bg: #f6f7fa;
+        --card: #fff;
+        --accent: #0b5394;
+        --ok: #1b7f3b;
+        --bad: #c0392b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          16px/1.6 system-ui,
+          'Hiragino Sans',
+          'Noto Sans JP',
+          sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      header {
+        background: var(--accent);
+        color: #fff;
+        padding: 16px 20px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      header p {
+        margin: 2px 0 0;
+        opacity: 0.85;
+        font-size: 14px;
+      }
+      nav {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        padding: 8px 20px;
+        background: #fff;
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+      nav button,
+      .btn {
+        font: inherit;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 8px;
+        padding: 4px 12px;
+        cursor: pointer;
+        color: var(--ink);
+      }
+      nav button.on {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      nav .sp {
+        flex: 1;
+      }
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      section.card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin: 0 0 16px;
+      }
+      h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      h3 {
+        margin: 18px 0 6px;
+        font-size: 17px;
+      }
+      h4 {
+        margin: 14px 0 4px;
+        font-size: 15px;
+      }
+      .en {
+        color: var(--mute);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .cando {
+        background: #fff7c2;
+        border-radius: 8px;
+        padding: 6px 10px;
+        margin: 8px 0 12px;
+      }
+      .task {
+        border-top: 1px dashed var(--line);
+        padding: 10px 0;
+      }
+      .task:first-of-type {
+        border-top: 0;
+      }
+      .tag {
+        display: inline-block;
+        font-size: 11px;
+        padding: 0 7px;
+        border-radius: 99px;
+        background: #e8eef7;
+        color: var(--accent);
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .play {
+        border: 0;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 99px;
+        padding: 1px 9px;
+        font-size: 12px;
+        cursor: pointer;
+        margin: 0 3px 3px 0;
+      }
+      .play.on {
+        background: #e67e22;
+      }
+      ruby rt {
+        font-size: 0.5em;
+      }
+      body.nofuri rt {
+        display: none;
+      }
+      .turns .turn {
+        display: flex;
+        gap: 8px;
+        margin: 3px 0;
+      }
+      .turns .who {
+        flex: 0 0 3em;
+        color: var(--mute);
+        text-align: right;
+      }
+      body.hide-scripts .turns.secret .txt {
+        filter: blur(7px);
+        cursor: pointer;
+      }
+      body.hide-scripts .turns.secret.shown .txt {
+        filter: none;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+      }
+      .pic {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        text-align: center;
+        background: #fff;
+      }
+      .pic img {
+        max-width: 100%;
+        max-height: 120px;
+        display: block;
+        margin: 6px auto 0;
+      }
+      .pic.pick {
+        cursor: pointer;
+      }
+      .pic.pick:hover {
+        border-color: var(--accent);
+      }
+      .pic.sel {
+        border-color: var(--accent);
+        background: #eaf2fb;
+      }
+      .bubbles {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 36px;
+        margin: 8px 0;
+      }
+      .bub {
+        border: 2px solid #f2b48b;
+        border-radius: 14px;
+        padding: 6px 12px;
+        background: #ffe9d9;
+      }
+      .bub.a {
+        background: #fff6c9;
+        border-color: #f0d56a;
+        grid-column: 1;
+      }
+      .bub.b {
+        grid-column: 2;
+      }
+      .bub div + div {
+        border-top: 1px dashed #e0a070;
+        margin-top: 3px;
+        padding-top: 3px;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 8px 0;
+      }
+      td,
+      th {
+        border: 1px solid var(--line);
+        padding: 3px 10px;
+      }
+      th {
+        background: #f0f2f6;
+        font-weight: 500;
+      }
+      .q {
+        margin: 10px 0;
+        padding: 10px 12px;
+        background: #fafbfc;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .opts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .opt {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 10px;
+        cursor: pointer;
+        background: #fff;
+        text-align: center;
+      }
+      .opt img {
+        display: block;
+        max-height: 80px;
+        margin: 0 auto 4px;
+      }
+      .opt.sel {
+        border-color: var(--accent);
+        background: #eaf2fb;
+      }
+      .opt.ok {
+        border-color: var(--ok);
+        background: #e6f6ea;
+      }
+      .opt.bad {
+        border-color: var(--bad);
+        background: #fdeceb;
+      }
+      input.blank {
+        font: inherit;
+        border: 0;
+        border-bottom: 2px solid var(--accent);
+        width: 7em;
+        text-align: center;
+        background: #f3f8fe;
+      }
+      input.blank.ok {
+        border-color: var(--ok);
+        background: #e6f6ea;
+      }
+      input.blank.bad {
+        border-color: var(--bad);
+        background: #fdeceb;
+      }
+      .fillrow {
+        margin: 8px 0;
+      }
+      .hint {
+        color: var(--mute);
+        font-size: 13px;
+      }
+      .card-flip {
+        cursor: pointer;
+        user-select: none;
+      }
+      .card-flip .back {
+        display: none;
+      }
+      .card-flip.flipped .back {
+        display: block;
+      }
+      .card-flip.flipped .front {
+        display: none;
+      }
+      .big {
+        font-size: 26px;
+      }
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 2px 10px;
+        margin: 2px;
+        background: #fff;
+      }
+      .pattern {
+        border: 2px solid var(--accent);
+        border-radius: 6px;
+        display: inline-block;
+        padding: 4px 14px;
+        font-weight: 600;
+        margin: 6px 0;
+      }
+      ul.pts {
+        padding-left: 18px;
+        margin: 6px 0;
+      }
+      .score {
+        font-weight: 600;
+        margin-left: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="h1"></h1>
+      <p id="h2"></p>
+    </header>
+    <nav id="nav"></nav>
+    <main id="main"></main>
+    <script id="data" type="application/json">
+      /*DATA*/
+    </script>
+    <script>
+      const L = JSON.parse(document.getElementById('data').textContent)
+      const $ = (s, el = document) => el.querySelector(s)
+      const h = (tag, attrs = {}, ...kids) => {
+        const el = document.createElement(tag)
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === 'class') el.className = v
+          else if (k.startsWith('on')) el.addEventListener(k.slice(2), v)
+          else if (v !== false && v != null) el.setAttribute(k, v)
+        }
+        for (const k of kids.flat(Infinity))
+          if (k != null && k !== false) el.append(k.nodeType ? k : document.createTextNode(k))
+        return el
+      }
+
+      // Japanese text with furigana ranges -> <span><ruby>…</ruby></span>
+      function jp(t) {
+        const span = h('span', { class: 'jp' })
+        if (!t) return span
+        const chars = [...t.text]
+        const ruby = [...(t.ruby || [])].sort((a, b) => a.start - b.start)
+        let i = 0
+        for (const r of ruby) {
+          if (r.start < i) continue
+          if (r.start > i) span.append(chars.slice(i, r.start).join(''))
+          span.append(h('ruby', {}, chars.slice(r.start, r.end).join(''), h('rt', {}, r.reading)))
+          i = r.end
+        }
+        if (i < chars.length) span.append(chars.slice(i).join(''))
+        return span
+      }
+      const plain = (t) => (t ? t.text : '')
+
+      // Audio: one player at a time, tracks looked up by id.
+      const files = Object.fromEntries(L.audio.map((a) => [a.id, a.file]))
+      const player = new Audio()
+      let playing = null
+      function playBtn(id) {
+        if (!files[id]) return null
+        const b = h('button', { class: 'play', title: files[id] }, '▶ ' + id)
+        b.addEventListener('click', () => {
+          if (playing === b) {
+            player.pause()
+            b.classList.remove('on')
+            playing = null
+            return
+          }
+          if (playing) playing.classList.remove('on')
+          player.src = 'audio/' + encodeURIComponent(files[id])
+          player.play()
+          b.classList.add('on')
+          playing = b
+          player.onended = () => {
+            b.classList.remove('on')
+            playing = null
+          }
+        })
+        return b
+      }
+      const plays = (ids) => (ids || []).map(playBtn)
+      const img = (f) => (f ? h('img', { src: f, loading: 'lazy' }) : null)
+
+      function turns(d, secret) {
+        return h(
+          'div',
+          {
+            class: 'turns' + (secret ? ' secret' : ''),
+            onclick: (e) => e.currentTarget.classList.toggle('shown'),
+          },
+          d.audio ? h('div', {}, playBtn(d.audio)) : null,
+          d.turns.map((t) =>
+            h(
+              'div',
+              { class: 'turn' },
+              h('span', { class: 'who' }, t.speaker),
+              h('span', { class: 'txt' }, jp(t.text)),
+            ),
+          ),
+        )
+      }
+
+      function optionsView(opts, onPick) {
+        const wrap = h('div', { class: 'opts' })
+        for (const o of opts) {
+          const el = h(
+            'div',
+            { class: 'opt', 'data-label': o.label },
+            img(o.image),
+            h('div', {}, o.label + '. ', jp(o.ja)),
+            o.en ? h('div', { class: 'en' }, o.en) : null,
+          )
+          el.addEventListener('click', () => onPick(o, el))
+          wrap.append(el)
+        }
+        return wrap
+      }
+
+      // The book has no answer key for choose tasks, so picks are recorded, not graded.
+      function chooseQuiz(quiz) {
+        const box = h('div')
+        for (const item of quiz.items) {
+          for (const q of item.questions) {
+            const wrap = h(
+              'div',
+              { class: 'q' },
+              plays(item.audio ? [item.audio] : []),
+              q.prompt ? h('div', {}, jp(q.prompt)) : null,
+            )
+            wrap.append(
+              optionsView(q.options, (o, el) => {
+                wrap.querySelectorAll('.opt').forEach((x) => x.classList.remove('sel'))
+                el.classList.add('sel')
+              }),
+            )
+            box.append(wrap)
+          }
+        }
+        box.append(
+          h(
+            'div',
+            { class: 'hint' },
+            'The book prints no answer key for this task. Listen, pick, and check with a teacher.',
+          ),
+        )
+        return box
+      }
+
+      const norm = (s) => s.replace(/[\s　、。，,.]/g, '')
+      function fillQuiz(quiz) {
+        const box = h('div')
+        let total = 0,
+          right = 0,
+          answered = 0
+        const score = h('span', { class: 'score' })
+        const inputs = []
+        for (const item of quiz.items) {
+          const row = h('div', { class: 'fillrow' })
+          const mine = []
+          item.parts.forEach((p, i) => {
+            row.append(jp(p))
+            if (i < item.parts.length - 1) {
+              const inp = h('input', { class: 'blank', autocomplete: 'off', spellcheck: 'false' })
+              mine.push(inp)
+              row.append(' ', inp, ' ')
+            }
+          })
+          inputs.push({ item, mine, row })
+          box.append(row)
+        }
+        const check = h('button', { class: 'btn' }, 'Check')
+        const reveal = h('button', { class: 'btn' }, 'Show answers')
+        check.addEventListener('click', () => {
+          total = right = answered = 0
+          for (const { item, mine } of inputs) {
+            if (!item.answers.length) continue
+            mine.forEach((inp, k) => {
+              if (!inp.value.trim()) {
+                inp.className = 'blank'
+                return
+              }
+              total++
+              const ok = item.answers.some((a) => norm(plain(a[k])) === norm(inp.value))
+              inp.className = 'blank ' + (ok ? 'ok' : 'bad')
+              if (ok) right++
+            })
+          }
+          score.textContent = total ? `${right} / ${total}` : ''
+        })
+        reveal.addEventListener('click', () => {
+          for (const { item, mine, row } of inputs) {
+            row.querySelector('.ans')?.remove()
+            if (!item.answers.length) {
+              row.append(h('span', { class: 'hint ans' }, ' (not in the book)'))
+              continue
+            }
+            row.append(
+              h(
+                'span',
+                { class: 'hint ans' },
+                ' → ',
+                item.answers.map((a) => a.map(plain).join(' / ')).join('  |  '),
+              ),
+            )
+          }
+        })
+        box.append(h('div', {}, check, ' ', reveal, score))
+        return box
+      }
+
+      function table(tb) {
+        const t = h('table')
+        if (tb.headings.length)
+          t.append(
+            h(
+              'tr',
+              {},
+              tb.headings.map((x) =>
+                h('th', {}, jp(x.ja), x.en ? h('div', { class: 'en' }, x.en) : null),
+              ),
+            ),
+          )
+        for (const r of tb.rows)
+          t.append(
+            h(
+              'tr',
+              {},
+              r.map((e) => [h('td', {}, jp(e.term)), h('td', { class: 'en' }, jp(e.reading))]),
+            ),
+          )
+        return t
+      }
+
+      function task(t, depth = 0) {
+        const el = h('div', { class: 'task', style: depth ? 'margin-left:18px' : null })
+        const head = h(
+          'div',
+          {},
+          t.kind ? h('span', { class: 'tag' }, t.kind) : null,
+          t.number ? h('b', {}, `(${t.number}) `) : null,
+          jp(t.instruction),
+          ' ',
+          t.kind === 'choose' || t.kind === 'fill' ? null : plays(t.audio),
+        )
+        el.append(head)
+        if (t.instruction_en) el.append(h('div', { class: 'en' }, t.instruction_en))
+        if (t.kind === 'choose' || t.kind === 'fill') el.append(h('div', {}, plays(t.audio)))
+        // Lines already shown as blanks or as the question are not repeated.
+        const used = new Set()
+        if (t.quiz?.type === 'fill')
+          t.quiz.items.forEach((i) => i.parts.forEach((p) => used.add(plain(p))))
+        if (t.quiz?.type === 'choose')
+          t.quiz.items.forEach((i) =>
+            i.questions.forEach((q) => q.prompt && used.add(plain(q.prompt))),
+          )
+        for (const b of t.body) {
+          if (b.ja && used.has(plain(b.ja))) continue
+          el.append(
+            h('div', {}, b.ja ? jp(b.ja) : null, b.en ? h('div', { class: 'en' }, b.en) : null),
+          )
+        }
+        if (t.kind === 'mark') {
+          el.append(
+            h(
+              'div',
+              {},
+              (t.audio || []).map((id) =>
+                h('label', { class: 'pill' }, h('input', { type: 'checkbox' }), ' ', id),
+              ),
+            ),
+          )
+        }
+        if (t.choices.length && !t.quiz) {
+          el.append(
+            h(
+              'div',
+              { class: 'grid' },
+              t.choices
+                .flat()
+                .map((c) =>
+                  h(
+                    'div',
+                    { class: 'pic' },
+                    h('div', {}, c.label + '. ', jp(c.ja)),
+                    c.en ? h('div', { class: 'en' }, c.en) : null,
+                    img(c.image),
+                  ),
+                ),
+            ),
+          )
+        }
+        if (t.practice?.length) {
+          el.append(
+            h(
+              'div',
+              { class: 'bubbles' },
+              t.practice.map((b) =>
+                h(
+                  'div',
+                  { class: 'bub ' + b.side },
+                  b.lines.map((l) => h('div', {}, jp(l))),
+                ),
+              ),
+            ),
+          )
+        }
+        if (t.grid) {
+          const tb = h('table')
+          tb.append(
+            h(
+              'tr',
+              {},
+              h('th', {}),
+              t.grid.columns.map((c) => h('th', {}, jp(c))),
+            ),
+          )
+          for (const r of t.grid.rows.length ? t.grid.rows : [null])
+            tb.append(
+              h(
+                'tr',
+                {},
+                h('th', {}, r ? jp(r) : ''),
+                t.grid.columns.map(() =>
+                  h('td', {}, h('input', { class: 'blank', style: 'width:8em' })),
+                ),
+              ),
+            )
+          el.append(tb)
+        }
+        t.dialogues.forEach((d) => el.append(turns(d, false)))
+        if (t.vocab.length)
+          el.append(
+            h(
+              'div',
+              {},
+              t.vocab.map((v) =>
+                h('span', { class: 'pill' }, jp(v.ja), ' ', h('span', { class: 'en' }, v.en)),
+              ),
+            ),
+          )
+        ;(t.tables || []).forEach((tb) => el.append(table(tb)))
+        if (t.quiz?.type === 'choose') {
+          // Pictures live on the choices of the task itself; quiz options carry the same paths.
+          el.append(chooseQuiz(t.quiz))
+        }
+        if (t.quiz?.type === 'fill') el.append(fillQuiz(t.quiz))
+        ;(t.subtasks || []).forEach((s) => el.append(task(s, depth + 1)))
+        return el
+      }
+
+      const views = {}
+      views.overview = () =>
+        h(
+          'div',
+          {},
+          L.activities.map((a) =>
+            h(
+              'section',
+              { class: 'card' },
+              h('h2', {}, `${a.number}. `, jp(a.title)),
+              h(
+                'div',
+                { class: 'cando' },
+                jp(a.can_do),
+                h('div', { class: 'en' }, `Can-do ${a.can_do_id}: ${a.can_do_en}`),
+              ),
+              h(
+                'div',
+                {},
+                a.steps.map((s) =>
+                  h(
+                    'div',
+                    {},
+                    h('b', {}, s.number + '. '),
+                    jp(s.title),
+                    ' ',
+                    h('span', { class: 'en' }, s.title_en),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+
+      L.activities.forEach((a) => {
+        views['act' + a.number] = () =>
+          h(
+            'section',
+            { class: 'card' },
+            h('h2', {}, `${a.number}. `, jp(a.title)),
+            h('div', { class: 'cando' }, jp(a.can_do), h('div', { class: 'en' }, a.can_do_en)),
+            a.steps.map((s) =>
+              h(
+                'div',
+                {},
+                h('h3', {}, s.number + '. ', jp(s.title)),
+                h('div', { class: 'en' }, s.title_en),
+                s.tasks.map((t) => task(t)),
+              ),
+            ),
+          )
+      })
+
+      views.kanji = () => {
+        const words = L.kanji.words
+        return h(
+          'section',
+          { class: 'card' },
+          h('h2', {}, '漢字のことば'),
+          h(
+            'div',
+            { class: 'grid' },
+            words.map((w) =>
+              h(
+                'div',
+                {
+                  class: 'pic card-flip',
+                  onclick: (e) => e.currentTarget.classList.toggle('flipped'),
+                },
+                h('div', { class: 'front big' }, plain(w)),
+                h('div', { class: 'back big' }, jp(w)),
+              ),
+            ),
+          ),
+          h('div', { class: 'hint' }, 'Tap a card to show the reading.'),
+          h('h3', {}, 'Read these'),
+          L.kanji.sentences.map((s) =>
+            h(
+              'div',
+              {},
+              '・',
+              ...plain(s)
+                .split('\n')
+                .map((l, i) => [i ? h('br') : null, l])
+                .flat(),
+            ),
+          ),
+        )
+      }
+
+      views.scripts = () =>
+        h(
+          'section',
+          { class: 'card' },
+          h('h2', {}, '聴解スクリプト'),
+          h(
+            'div',
+            { class: 'hint' },
+            'Scripts are blurred while "Hide scripts" is on. Tap one to reveal it.',
+          ),
+          L.scripts.map((d) => h('div', { style: 'margin:10px 0' }, turns(d, true))),
+        )
+
+      views.notes = () =>
+        h(
+          'div',
+          {},
+          L.notes.map((n) =>
+            h(
+              'section',
+              { class: 'card' },
+              h('h3', { style: 'margin-top:0' }, h('span', { class: 'tag' }, n.kind), jp(n.title)),
+              n.pattern?.length
+                ? h(
+                    'div',
+                    { class: 'pattern' },
+                    n.pattern.map((p) => h('div', {}, jp(p))),
+                  )
+                : null,
+              n.blocks.map((b) =>
+                h('div', {}, b.ja ? jp(b.ja) : null, b.en ? h('div', { class: 'en' }, b.en) : null),
+              ),
+              h(
+                'ul',
+                { class: 'pts' },
+                n.points.map((p) =>
+                  h('li', {}, p.en, p.ja ? h('div', { class: 'en' }, jp(p.ja)) : null),
+                ),
+              ),
+              n.examples.map((e) =>
+                h(
+                  'div',
+                  { style: 'margin:8px 0;padding-left:10px;border-left:3px solid var(--line)' },
+                  e.turns.map((t) =>
+                    h(
+                      'div',
+                      {},
+                      t.speaker ? t.speaker + '：' : '▶ ',
+                      jp(t.ja),
+                      t.en ? h('div', { class: 'en' }, t.en) : null,
+                    ),
+                  ),
+                ),
+              ),
+              (n.sections || []).map((s) =>
+                h(
+                  'div',
+                  {},
+                  h('h4', {}, jp(s.title)),
+                  s.intro
+                    ? h(
+                        'div',
+                        {},
+                        s.intro.ja ? jp(s.intro.ja) : null,
+                        h('div', { class: 'en' }, s.intro.en),
+                      )
+                    : null,
+                  (s.groups || []).map((g) =>
+                    h(
+                      'div',
+                      { style: 'margin:8px 0' },
+                      h('b', {}, `Group ${g.group}`),
+                      ' ',
+                      h(
+                        'span',
+                        { class: 'en' },
+                        [g.stem_en, g.rule_en].filter(Boolean).join(' · '),
+                      ),
+                      h(
+                        'div',
+                        {},
+                        (g.examples || []).map((p) =>
+                          h(
+                            'span',
+                            { class: 'pill' },
+                            jp(p.from),
+                            ' → ',
+                            jp(p.to),
+                            p.from_note ? h('span', { class: 'en' }, ` (${p.from_note})`) : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  (s.rules || []).length
+                    ? h(
+                        'table',
+                        {},
+                        h(
+                          'tr',
+                          {},
+                          ['Group', 'Dictionary form', 'テ-form', 'Examples'].map((x) =>
+                            h('th', {}, x),
+                          ),
+                        ),
+                        s.rules.map((r) =>
+                          h(
+                            'tr',
+                            {},
+                            h('td', {}, r.group),
+                            h('td', {}, r.ending),
+                            h('td', {}, r.result || '—'),
+                            h(
+                              'td',
+                              {},
+                              r.examples.map((p) =>
+                                h(
+                                  'span',
+                                  { class: 'pill' },
+                                  jp(p.from),
+                                  ' → ',
+                                  jp(p.to),
+                                  p.note ? h('span', { class: 'en' }, ` ${p.note}`) : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
+                  s.footnote ? h('div', { class: 'en' }, s.footnote.en) : null,
+                ),
+              ),
+            ),
+          ),
+        )
+
+      const tabs = [
+        ['overview', 'Overview'],
+        ...L.activities.map((a) => ['act' + a.number, `Activity ${a.number}`]),
+        ['kanji', '漢字'],
+        ['notes', 'Grammar'],
+        ['scripts', 'Scripts'],
+      ]
+      function show(id) {
+        $('#nav')
+          .querySelectorAll('button[data-t]')
+          .forEach((b) => b.classList.toggle('on', b.dataset.t === id))
+        const m = $('#main')
+        m.replaceChildren(views[id]())
+        location.hash = id
+        window.scrollTo(0, 0)
+      }
+      const nav = $('#nav')
+      tabs.forEach(([id, label]) =>
+        nav.append(h('button', { 'data-t': id, onclick: () => show(id) }, label)),
+      )
+      nav.append(
+        h('span', { class: 'sp' }),
+        h(
+          'button',
+          {
+            onclick: (e) => {
+              document.body.classList.toggle('nofuri')
+              e.target.classList.toggle('on')
+            },
+          },
+          'Hide furigana',
+        ),
+        h(
+          'button',
+          {
+            onclick: (e) => {
+              document.body.classList.toggle('hide-scripts')
+              e.target.classList.toggle('on')
+            },
+          },
+          'Hide scripts',
+        ),
+      )
+      $('#h1').textContent = `第${L.number}課　${plain(L.title.ja ? { text: L.title.ja } : null)}`
+      $('#h2').textContent = `${L.topic.ja} · ${L.topic.en} — ${L.title.en}`
+      document.title = `Irodori L${L.number}`
+      show(views[location.hash.slice(1)] ? location.hash.slice(1) : 'overview')
+    </script>
+  </body>
+</html>

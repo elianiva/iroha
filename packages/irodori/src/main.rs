@@ -25,6 +25,12 @@ enum Cmd {
         #[arg(long, default_value = "data/elementary01")]
         out: PathBuf,
     },
+    /// Write an interactive index.html next to a lesson's lesson.json.
+    Html {
+        number: u32,
+        #[arg(long, default_value = "data/elementary01")]
+        out: PathBuf,
+    },
     /// Print the layout lines of a PDF, with furigana as {reading|base}.
     Dump { pdf: PathBuf },
     /// Print the tables pdf_oxide detects on a page (1-based).
@@ -66,6 +72,14 @@ async fn main() -> anyhow::Result<()> {
             let json = dir.join("lesson.json");
             std::fs::write(&json, serde_json::to_string_pretty(&lesson)?)?;
             println!("wrote {}", json.display());
+        }
+        Cmd::Html { number, out } => {
+            let dir = out.join(format!("L{number:02}"));
+            let json = std::fs::read_to_string(dir.join("lesson.json")).with_context(|| format!("run `irodori lesson {number}` first"))?;
+            // `</script>` inside the data would end the tag early.
+            let page = include_str!("../viewer.html").replace("/*DATA*/", &json.replace("</", "<\\/"));
+            std::fs::write(dir.join("index.html"), page)?;
+            println!("wrote {}", dir.join("index.html").display());
         }
         Cmd::Tables { pdf, page } => {
             let doc = pdf_oxide::PdfDocument::open(&pdf)?;
