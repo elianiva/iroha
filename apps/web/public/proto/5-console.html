@@ -1,0 +1,307 @@
+<!doctype html><meta charset="utf-8" /><meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+/><title>Console</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #0b0f14;
+    color: #d7e0ea;
+    font:
+      14px/1.6 ui-monospace,
+      'JetBrains Mono',
+      Menlo,
+      'Hiragino Sans',
+      monospace;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr) 280px;
+    height: 100vh;
+  }
+  .col {
+    padding: 14px;
+    overflow: auto;
+    border-right: 1px solid #1d2733;
+  }
+  .col:last-child {
+    border: 0;
+  }
+  h4 {
+    margin: 14px 0 8px;
+    color: #5b6b7d;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+  }
+  .it {
+    display: block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .it:hover {
+    background: #141c26;
+  }
+  .it.on {
+    background: #16324a;
+    color: #7fd1ff;
+  }
+  .it.l {
+    margin-left: 12px;
+  }
+  .it.s {
+    margin-left: 26px;
+    font-size: 12px;
+    color: #8fa3b8;
+  }
+  .mid {
+    padding: 28px 40px;
+    overflow: auto;
+  }
+  .prompt {
+    color: #5b6b7d;
+  }
+  .dim {
+    color: #5b6b7d;
+  }
+  kbd {
+    background: #1d2733;
+    border-radius: 3px;
+    padding: 0 6px;
+    color: #9fb3c8;
+  }
+  .ir-instr {
+    font:
+      22px/1.8 'Hiragino Sans',
+      sans-serif;
+    color: #fff;
+    margin: 10px 0;
+  }
+  .ir-en {
+    color: #6f8196;
+  }
+  .ir-ja {
+    font-family: 'Hiragino Sans', sans-serif;
+    font-size: 18px;
+    color: #e8f1fa;
+  }
+  .ir-play {
+    background: #16324a;
+    color: #7fd1ff;
+    border-radius: 4px;
+    width: auto;
+    padding: 0 10px;
+  }
+  .ir-opt {
+    background: #101821;
+    border: 1px solid #243242;
+    color: #d7e0ea;
+    border-radius: 4px;
+    padding: 8px 12px;
+  }
+  .ir-opt.picked,
+  .ir-opt:hover {
+    border-color: #7fd1ff;
+    color: #7fd1ff;
+  }
+  .ir-in {
+    background: #101821;
+    border: 1px solid #243242;
+    color: #7fd1ff;
+    border-radius: 4px;
+    padding: 6px;
+    font-size: 18px;
+    width: 6em;
+    outline: none;
+  }
+  .ir-in:focus {
+    border-color: #7fd1ff;
+  }
+  .ir-check {
+    background: #16324a;
+    color: #7fd1ff;
+    border: 0;
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .ir-fillrow {
+    margin: 6px 0;
+  }
+  .ir-table td,
+  .ir-table th {
+    border-color: #243242;
+  }
+  .ir-turn b {
+    color: #ffd479;
+  }
+  .ir-vocab li {
+    border-bottom: 1px solid #1d2733;
+    padding: 3px 0;
+  }
+  .ir-bubble {
+    border: 1px solid #243242;
+    padding: 4px 10px;
+    margin: 3px;
+    display: inline-block;
+  }
+  .gl {
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    border-bottom: 1px solid #141c26;
+    padding: 2px 0;
+  }
+  .gl rt {
+    display: none;
+  }
+  .bar {
+    height: 5px;
+    background: #16202b;
+    border-radius: 3px;
+    margin: 6px 0;
+  }
+  .bar b {
+    display: block;
+    height: 100%;
+    background: #7fd1ff;
+    border-radius: 3px;
+  }
+  .thumbs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .thumbs img {
+    width: 100%;
+    background: #fff;
+    border-radius: 3px;
+  }
+  @media (max-width: 900px) {
+    .app {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .col {
+      border: 0;
+    }
+  }
+</style>
+<div class="app">
+  <div class="col" id="tree"></div>
+  <div class="mid" id="mid"></div>
+  <div class="col" id="rt"></div>
+</div>
+<script src="lib.js"></script>
+<script>
+  IR.wire()
+  const qs = new URLSearchParams(location.search)
+  let IX,
+    L,
+    sec,
+    us = [],
+    u = 0
+  const secLabel = (s) =>
+    s.kind === 'activity'
+      ? s.title
+        ? s.title.text
+        : s.id
+      : { kanji: '漢字', grammar: 'grammar', scripts: 'scripts' }[s.kind]
+
+  const tree_ = document.getElementById('tree')
+  function drawTree() {
+    tree_.innerHTML =
+      `<h4>book · ${IX.book.title.en}</h4>` +
+      IX.chapters
+        .map(
+          (c) =>
+            `<div class=dim style="margin-top:10px">${c.number} ${c.topic.ja} · ${c.topic.en}</div>` +
+            c.lessons
+              .map(
+                (l) =>
+                  `<a class="it l ${l.number === L.number ? 'on' : ''}" href="?l=${l.number}">L${l.number} ${l.title.ja}</a>` +
+                  (l.number === L.number
+                    ? l.sections
+                        .map(
+                          (s) =>
+                            `<a class="it s ${s.id === sec.id ? 'on' : ''}" href="?l=${l.number}&s=${s.id}">${s.kind === 'activity' ? '▸ ' : '◆ '}${secLabel(s)}</a>`,
+                        )
+                        .join('')
+                    : ''),
+              )
+              .join(''),
+        )
+        .join('')
+  }
+  function drawMid() {
+    let b = ''
+    const s = sec
+    if (s.kind === 'activity') {
+      const a = L.activities.find((a) => 'activity-' + a.number === s.id)
+      us = IR.units(a)
+      const x = us[u]
+      b = `<div class=prompt>$ lesson ${L.number} activity ${a.number} --step ${x.step.number} --${x.task.kind || 'task'}  <span class=dim>[${u + 1}/${us.length}]</span></div><div class=bar><b style="width:${((u + 1) / us.length) * 100}%"></b></div><div class=dim>${IR.t(x.step.title)} — ${IR.esc(x.step.title_en)}</div>${IR.task(L, x.task)}<p class=dim style="margin-top:28px"><kbd>←</kbd><kbd>→</kbd> unit &nbsp;<kbd>1</kbd>–<kbd>9</kbd> pick &nbsp;<kbd>⏎</kbd> check &nbsp;<kbd>p</kbd> play</p>`
+    } else if (s.kind === 'kanji')
+      b = `<div class=prompt>$ lesson ${L.number} kanji</div>${IR.kanji(L.kanji)}`
+    else if (s.kind === 'grammar')
+      b =
+        `<div class=prompt>$ lesson ${L.number} grammar</div>` +
+        L.notes.map((n) => `<div style="margin:22px 0">${IR.note(L, n)}</div>`).join('')
+    else b = `<div class=prompt>$ lesson ${L.number} scripts</div>${IR.scripts(L, L.scripts)}`
+    mid.innerHTML = b
+    const f = mid.querySelector('.ir-in')
+    f && f.focus()
+  }
+  function drawRt() {
+    const g = []
+    L.activities.forEach((a) =>
+      a.steps.forEach((st) => {
+        const w = (k) => {
+          k.vocab.forEach((v) => g.push(v))
+          ;(k.subtasks || []).forEach(w)
+        }
+        st.tasks.forEach(w)
+      }),
+    )
+    rt.innerHTML = `<h4>lesson</h4>${IR.esc(L.title.en)}<br><span class=dim>${IR.esc(L.topic.en)}</span><h4>audio · ${L.audio.length}</h4>${L.audio.map((a) => `<div>${IR.play(L, a.id)}<span class=dim>${a.id} ${a.kind}</span></div>`).join('')}<h4>images · ${L.images.length}</h4><div class=thumbs>${L.images.map((i) => `<img src="${IR.url(L, i.file)}">`).join('')}</div><h4>glossary · ${g.length}</h4>${g.map((v) => `<div class=gl><span>${IR.t(v.ja)}</span><span class=dim>${IR.esc(v.en)}</span></div>`).join('')}`
+  }
+  const mid = document.getElementById('mid'),
+    rt = document.getElementById('rt')
+  document.addEventListener('keydown', (e) => {
+    const inp = e.target.classList?.contains('ir-in')
+    if (e.key === 'Enter' && inp) {
+      mid.querySelector('.ir-check')?.click()
+      return
+    }
+    if (inp) return
+    if (e.key === 'ArrowRight' && u < us.length - 1) {
+      u++
+      drawMid()
+    }
+    if (e.key === 'ArrowLeft' && u > 0) {
+      u--
+      drawMid()
+    }
+    if (/[1-9]/.test(e.key)) mid.querySelectorAll('.ir-opt')[+e.key - 1]?.click()
+    if (e.key === 'p') mid.querySelector('.ir-play')?.click()
+  })
+  Promise.all([IR.index(), IR.load(IR.lessonNo())]).then(([ix, l]) => {
+    IX = ix
+    L = l
+    const secs = ix.chapters.flatMap((c) => c.lessons).find((x) => x.number === l.number).sections
+    sec = secs.find((s) => s.id === qs.get('s')) || secs[0]
+    drawTree()
+    drawMid()
+    drawRt()
+  })
+</script>
