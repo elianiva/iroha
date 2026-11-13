@@ -1,3 +1,4 @@
+mod catalog;
 mod coverage;
 mod layout;
 mod model;
@@ -35,6 +36,11 @@ enum Cmd {
     /// List PDF lines whose text is missing from lesson.json, to find what the parser drops.
     Coverage {
         number: u32,
+        #[arg(long, default_value = "data/elementary01")]
+        out: PathBuf,
+    },
+    /// Write index.json, the catalog of every parsed lesson grouped into chapters.
+    Index {
         #[arg(long, default_value = "data/elementary01")]
         out: PathBuf,
     },
@@ -85,6 +91,10 @@ async fn main() -> anyhow::Result<()> {
             let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("lesson.json"))?)?;
             let pdf = dir.join(format!("Y_L{number:02}.pdf"));
             coverage::report(&json, &layout::read_pages(pdf.to_str().context("path")?)?);
+        }
+        Cmd::Index { out } => {
+            let n = catalog::write(&out)?;
+            println!("wrote {} ({n} lessons)", out.join("index.json").display());
         }
         Cmd::Html { number, out } => {
             let dir = out.join(format!("L{number:02}"));
