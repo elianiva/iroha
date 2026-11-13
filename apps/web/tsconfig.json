@@ -8,11 +8,17 @@
         "overrides": [
           {
             "include": ["src/platform/**/*.ts"],
-            "options": { "allowedUnstableApis": ["effect/rpc"] }
+            "options": {
+              "allowedUnstableApis": ["effect/rpc"]
+            }
           }
         ]
       }
-    ]
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*.ts", "vite.config.ts"]
 }
