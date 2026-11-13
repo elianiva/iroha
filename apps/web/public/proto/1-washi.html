@@ -1,0 +1,319 @@
+<!doctype html><meta charset="utf-8" /><meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+/><title>Washi</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  :root {
+    --paper: #f3ecdc;
+    --ink: #1c1a17;
+    --red: #b5382b;
+    --mute: #8a7f6c;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #e4dac3;
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, serif;
+    color: var(--ink);
+  }
+  .bar {
+    max-width: 1040px;
+    margin: 18px auto 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 0 12px;
+    font: 13px Georgia;
+  }
+  .bar select,
+  .bar button {
+    font: inherit;
+    padding: 6px 10px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+  }
+  .bar .sp {
+    flex: 1;
+  }
+  .spread {
+    max-width: 1040px;
+    margin: 12px auto 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--paper);
+    box-shadow:
+      0 30px 60px #0003,
+      inset 0 0 90px #c9b98f66;
+    position: relative;
+  }
+  .spread:before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    margin-left: -20px;
+    background: linear-gradient(90deg, transparent, #0002, transparent);
+    pointer-events: none;
+  }
+  .page {
+    padding: 46px 44px 60px;
+    position: relative;
+    min-height: 640px;
+  }
+  .no {
+    font: 12px/1 Georgia;
+    letter-spacing: 0.3em;
+    color: var(--mute);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 46px;
+    margin: 0.2em 0 0.1em;
+    letter-spacing: 0.04em;
+  }
+  h2 {
+    font-size: 24px;
+    margin: 0.2em 0 0.6em;
+  }
+  h3 {
+    margin: 0.2em 0;
+  }
+  .seal {
+    position: absolute;
+    right: 38px;
+    top: 38px;
+    width: 60px;
+    height: 60px;
+    background: var(--red);
+    color: var(--paper);
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    font-weight: 700;
+    transform: rotate(-6deg);
+    border-radius: 6px;
+    box-shadow:
+      inset 0 0 0 3px var(--red),
+      inset 0 0 0 5px var(--paper);
+  }
+  .ir-instr {
+    font-size: 20px;
+    margin: 8px 0 14px;
+    border-left: 3px solid var(--red);
+    padding-left: 12px;
+  }
+  .ir-en {
+    font-family: Georgia, serif;
+    font-style: italic;
+    color: var(--mute);
+  }
+  .ir-play {
+    background: var(--red);
+    color: var(--paper);
+  }
+  .ir-play.on {
+    outline: 2px solid var(--ink);
+  }
+  .ir-opt {
+    background: none;
+    border: 1px solid var(--ink);
+    padding: 6px 12px;
+    font-size: 17px;
+  }
+  .ir-opt:hover,
+  .ir-opt.picked {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .ir-in {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid var(--ink);
+    color: var(--red);
+    font-weight: 700;
+    outline: none;
+    width: 6em;
+  }
+  .ir-check {
+    font: 13px Georgia;
+    margin-top: 8px;
+    border: 1px solid var(--ink);
+    background: none;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+  .ir-turn {
+    font-size: 19px;
+    line-height: 1.9;
+  }
+  .ir-turn b {
+    font: 700 11px Georgia;
+    color: var(--red);
+    padding-top: 9px;
+  }
+  .ir-fillrow {
+    font-size: 20px;
+    line-height: 2.4;
+  }
+  .ir-block {
+    margin: 6px 0;
+    font-size: 18px;
+  }
+  .ir-vocab li {
+    border-bottom: 1px solid #0002;
+    padding: 4px 0;
+    font-size: 18px;
+  }
+  .ir-bubble {
+    display: inline-block;
+    margin: 3px 8px 3px 0;
+    padding: 6px 10px;
+    border: 1px solid #0004;
+  }
+  .ir-bubble[data-side='b'] {
+    border-style: dashed;
+  }
+  .ir-point,
+  .ir-example {
+    border-left: 2px solid var(--red);
+    padding-left: 12px;
+    margin: 10px 0;
+    font-size: 16px;
+  }
+  .ir-pattern {
+    font-size: 20px;
+    color: var(--red);
+  }
+  .ir-hints {
+    font-size: 14px;
+    color: var(--mute);
+  }
+  .foot {
+    position: absolute;
+    bottom: 20px;
+    left: 44px;
+    right: 44px;
+    display: flex;
+    justify-content: space-between;
+    font: 12px Georgia;
+    color: var(--mute);
+  }
+  .hero img {
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    margin-top: 14px;
+  }
+  @media (max-width: 800px) {
+    .spread {
+      grid-template-columns: 1fr;
+    }
+    .spread:before {
+      display: none;
+    }
+  }
+</style>
+<div class="bar">
+  <select id="sel"></select
+  ><span class="sp"></span><label><input type="checkbox" id="fu" checked /> furigana</label
+  ><button id="pv">← prev</button><span id="pn"></span><button id="nx">next →</button>
+</div>
+<div class="spread" id="sp"></div>
+<script src="lib.js"></script>
+<script>
+  let pages = [],
+    at = 0,
+    L
+  const num = [
+    '',
+    '一',
+    '二',
+    '三',
+    '四',
+    '五',
+    '六',
+    '七',
+    '八',
+    '九',
+    '十',
+    '十一',
+    '十二',
+    '十三',
+    '十四',
+    '十五',
+    '十六',
+    '十七',
+    '十八',
+  ]
+  function build(l) {
+    const P = []
+    P.push({
+      no: `Chapter · ${l.topic.en}`,
+      h: `<h1>第${num[l.number]}課</h1><h2 class=ir-ja>${l.title.ja}</h2><p class=ir-en>${IR.esc(l.title.en)}</p><div class=seal>${num[l.number]}</div>${l.question.ja ? `<div class=ir-instr>${IR.block(l.question)}</div>` : ''}<div class=hero>${l.images
+        .slice(0, 1)
+        .map((i) => `<img src="${IR.url(l, i.file)}">`)
+        .join('')}</div>`,
+    })
+    l.activities.forEach((a) => {
+      const us = IR.units(a)
+      a.steps.forEach((s) => {
+        const mine = us.filter((u) => u.step === s)
+        P.push({
+          no: `Activity ${a.number} · Step ${s.number}`,
+          h:
+            `<h2>${IR.t(a.title)}</h2><p class=ir-en>${IR.esc(a.can_do_en)}</p><h3 style="margin-top:14px">${IR.t(s.title)}</h3><p class=ir-en>${IR.esc(s.title_en)}</p>` +
+            mine
+              .map(
+                (u) =>
+                  `<section style="margin:18px 0"><div class=no>${IR.kind(u.task.kind)}</div>${IR.task(l, u.task)}</section>`,
+              )
+              .join(''),
+        })
+      })
+    })
+    P.push({ no: '漢字', h: `<h2>漢字のことば</h2>${IR.kanji(l.kanji)}` })
+    l.notes.forEach((n) => P.push({ no: 'Notes · ' + n.kind, h: IR.note(l, n) }))
+    P.push({ no: 'Scripts', h: `<h2>スクリプト</h2>${IR.scripts(l, l.scripts)}` })
+    return P
+  }
+  function draw() {
+    sp.innerHTML = [pages[at], pages[at + 1]]
+      .map((p, i) =>
+        p
+          ? `<section class=page><div class=no>${p.no}</div>${p.h}<div class=foot><span>— ${at + i + 1} —</span></div></section>`
+          : '<section class=page></section>',
+      )
+      .join('')
+    pn.textContent = `${at + 1}–${Math.min(at + 2, pages.length)} / ${pages.length}`
+    window.scrollTo(0, 0)
+  }
+  pv.onclick = () => {
+    at = Math.max(0, at - 2)
+    draw()
+  }
+  nx.onclick = () => {
+    at = Math.min(pages.length - 1, at + 2)
+    draw()
+  }
+  fu.onchange = () => document.body.classList.toggle('furi-off', !fu.checked)
+  IR.wire()
+  Promise.all([IR.index(), IR.load(IR.lessonNo())]).then(([ix, l]) => {
+    sel.innerHTML = ix.chapters
+      .flatMap((c) => c.lessons)
+      .map(
+        (x) =>
+          `<option value=${x.number} ${x.number == l.number ? 'selected' : ''}>第${x.number}課 ${x.title.ja}</option>`,
+      )
+      .join('')
+    sel.onchange = () => (location.search = '?l=' + sel.value)
+    pages = build(l)
+    draw()
+  })
+</script>

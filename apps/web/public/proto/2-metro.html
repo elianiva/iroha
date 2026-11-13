@@ -1,0 +1,271 @@
+<!doctype html><meta charset="utf-8" /><meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+/><title>Metro</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #f4f4f0;
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
+    color: #111;
+  }
+  header {
+    background: #111;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    justify-content: space-between;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+  header a {
+    color: #fff;
+    text-decoration: none;
+  }
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .line {
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    margin-bottom: 30px;
+  }
+  .badge {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background: var(--c);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    font-size: 22px;
+    border: 4px solid #111;
+  }
+  .lh {
+    margin: 4px 0 0 16px;
+    font-weight: 900;
+    font-size: 20px;
+  }
+  .lh small {
+    font-weight: 500;
+    opacity: 0.6;
+    margin-left: 8px;
+  }
+  .track {
+    position: relative;
+    display: flex;
+    margin-left: 10px;
+    overflow-x: auto;
+    padding: 18px 0 70px;
+  }
+  .track:before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 34px;
+    height: 14px;
+    background: var(--c);
+  }
+  .stn {
+    position: relative;
+    z-index: 1;
+    min-width: 150px;
+    text-decoration: none;
+    color: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff;
+    border: 7px solid #111;
+  }
+  .stn small {
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: center;
+    max-width: 140px;
+  }
+  .stn small em {
+    display: block;
+    font: 11px Georgia;
+    opacity: 0.6;
+  }
+  .stn:hover .dot {
+    background: var(--c);
+  }
+  .crumb {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .crumb a {
+    color: #111;
+  }
+  .ride {
+    background: #fff;
+    border: 4px solid #111;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    min-height: 70vh;
+  }
+  .side {
+    background: var(--c);
+    color: #fff;
+    padding: 16px;
+  }
+  .side h2 {
+    margin: 0 0 6px;
+    font-size: 20px;
+  }
+  .side a {
+    display: block;
+    padding: 7px 4px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    border-left: 5px solid #fff4;
+  }
+  .side a.on {
+    border-color: #fff;
+    background: #0003;
+  }
+  .view {
+    padding: 28px 34px;
+  }
+  .pill {
+    display: inline-block;
+    background: #111;
+    color: #fff;
+    padding: 2px 9px;
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+  .ir-instr {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .ir-play {
+    background: #111;
+    color: #fff;
+  }
+  .ir-opt {
+    background: #fff;
+    border: 3px solid #111;
+    padding: 8px 14px;
+    font-weight: 700;
+  }
+  .ir-opt:hover,
+  .ir-opt.picked {
+    background: var(--c);
+    color: #fff;
+  }
+  .ir-in {
+    border: 0;
+    border-bottom: 4px solid #111;
+    background: #ffd40044;
+    width: 5em;
+    outline: none;
+  }
+  .ir-check {
+    background: #111;
+    color: #fff;
+    border: 0;
+    padding: 8px 18px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .ir-turn {
+    font-size: 20px;
+  }
+  .nav {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 24px;
+  }
+  .nav button {
+    background: #111;
+    color: #fff;
+    border: 0;
+    padding: 12px 24px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .nav button:disabled {
+    opacity: 0.3;
+  }
+  @media (max-width: 760px) {
+    .ride {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<header><a href="2-metro.html">いろどり METRO</a><span id="who"></span></header>
+<main id="m"></main>
+<script src="lib.js"></script>
+<script>
+  const COL = [
+    '#e60012',
+    '#0089d0',
+    '#f39700',
+    '#00a040',
+    '#8e44ad',
+    '#d6336c',
+    '#0b7285',
+    '#7f6000',
+    '#495057',
+  ]
+  const qs = new URLSearchParams(location.search),
+    m = document.getElementById('m')
+  IR.wire()
+  IR.index().then(async (ix) => {
+    if (!qs.get('l')) {
+      m.innerHTML = ix.chapters
+        .map(
+          (c, ci) =>
+            `<div class=line style="--c:${COL[ci % 9]}"><div class=badge>${c.number}</div><div><div class=lh>${IR.t(c.topic.ja ? { text: c.topic.ja } : c.topic)} <small>${IR.esc(c.topic.en)}</small></div><div class=track>${c.lessons.map((l) => `<a class=stn href="?l=${l.number}&s=${l.sections[0].id}"><div class=dot></div><small>第${l.number}課 ${IR.t(l.title.ja ? { text: l.title.ja } : l.title)}<em>${IR.esc(l.title.en)}</em></small></a>`).join('')}</div></div></div>`,
+        )
+        .join('')
+      return
+    }
+    const n = +qs.get('l'),
+      ch = ix.chapters.findIndex((c) => c.lessons.some((l) => l.number === n)),
+      L = await IR.load(n),
+      secs = ix.chapters[ch].lessons.find((l) => l.number === n).sections
+    let s = qs.get('s') || secs[0].id,
+      u = +(qs.get('u') || 0)
+    who.textContent = `Line ${ix.chapters[ch].number} · 第${n}課`
+    const sec = secs.find((x) => x.id === s) || secs[0],
+      style = `--c:${COL[ch % 9]}`
+    let body = '',
+      total = 1
+    if (sec.kind === 'activity') {
+      const a = L.activities.find((a) => 'activity-' + a.number === sec.id),
+        us = IR.units(a)
+      total = us.length
+      const x = us[u]
+      body = `<span class=pill>${u + 1} / ${total} · ${IR.kind(x.task.kind)}</span><p class=ir-en style="font-size:14px">${IR.t(x.step.title)} — ${IR.esc(x.step.title_en)}</p>${IR.task(L, x.task)}`
+    } else if (sec.kind === 'kanji') body = `<h2>漢字のことば</h2>${IR.kanji(L.kanji)}`
+    else if (sec.kind === 'grammar')
+      body = L.notes.map((nn) => `<div style="margin-bottom:26px">${IR.note(L, nn)}</div>`).join('')
+    else body = `<h2>Scripts</h2>${IR.scripts(L, L.scripts)}`
+    const href = (ss, uu) => `?l=${n}&s=${ss}&u=${uu}`
+    m.innerHTML = `<div class=crumb style="${style}"><a href=2-metro.html>Map</a> › Line ${ix.chapters[ch].number} › 第${n}課 ${IR.t({ text: L.title.ja })}</div><div class=ride style="${style}"><nav class=side><h2>第${n}課</h2><p style="font-size:12px;margin:0 0 12px">${IR.esc(L.title.en)}</p>${secs.map((x, i) => `<a class="${x.id === sec.id ? 'on' : ''}" href="${href(x.id, 0)}">${x.kind === 'activity' ? '● ' + (x.title ? IR.t(x.title) : '') : '◆ ' + { kanji: '漢字', grammar: 'Grammar', scripts: 'Scripts' }[x.kind]}</a>`).join('')}</nav><div class=view>${body}<div class=nav><button onclick="location.search='${href(sec.id, Math.max(0, u - 1))}'" ${u == 0 ? 'disabled' : ''}>← Back</button><button onclick="location.search='${href(sec.id, u + 1)}'" ${u >= total - 1 ? 'disabled' : ''}>Next stop →</button></div></div></div>`
+  })
+</script>

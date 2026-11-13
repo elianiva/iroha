@@ -1,0 +1,248 @@
+<!doctype html><meta charset="utf-8" /><meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+/><title>Chat</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #cfd8dc;
+    font-family: 'Hiragino Sans', system-ui, sans-serif;
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+  }
+  .phone {
+    width: 440px;
+    max-width: 100%;
+    height: min(820px, 100vh);
+    background: #8fb3c9;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 50px #0004;
+  }
+  .top {
+    background: #2b3a42;
+    color: #fff;
+    padding: 12px 14px;
+  }
+  .top b {
+    display: block;
+  }
+  .top small {
+    opacity: 0.7;
+    font-size: 12px;
+  }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    overflow-x: auto;
+  }
+  .tabs button {
+    font: 12px inherit;
+    border: 0;
+    border-radius: 12px;
+    padding: 5px 11px;
+    background: #fff2;
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tabs button.on {
+    background: #8de27b;
+    color: #143;
+  }
+  .feed {
+    flex: 1;
+    overflow: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sys {
+    align-self: center;
+    background: #0003;
+    color: #fff;
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 92%;
+  }
+  .card {
+    align-self: flex-start;
+    background: #fff;
+    border-radius: 4px 18px 18px 18px;
+    padding: 12px 14px;
+    max-width: 92%;
+    animation: in 0.3s;
+    font-size: 16px;
+  }
+  @keyframes in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .ir-instr {
+    margin: 0 0 6px;
+    font-weight: 700;
+  }
+  .ir-play {
+    background: #2b3a42;
+    color: #fff;
+  }
+  .ir-dialogue {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 6px 0;
+  }
+  .ir-turn {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 16px;
+    font-size: 17px;
+    background: #f1f4f5;
+    align-self: flex-start;
+  }
+  .ir-turn b {
+    display: none;
+  }
+  .ir-turn[data-s='B'] {
+    background: #8de27b;
+    align-self: flex-end;
+  }
+  .ir-opt {
+    background: #fff;
+    border: 1.5px solid #2b3a42;
+    border-radius: 16px;
+    padding: 7px 13px;
+  }
+  .ir-opt.picked {
+    background: #2b3a42;
+    color: #fff;
+  }
+  .ir-in {
+    border: 0;
+    border-bottom: 2px solid #2b3a42;
+    background: #e8f1f5;
+    width: 5em;
+    text-align: center;
+  }
+  .ir-check {
+    border: 0;
+    background: #2b3a42;
+    color: #fff;
+    border-radius: 14px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .ir-bubble {
+    padding: 6px 10px;
+    border-radius: 14px;
+    margin: 3px 0;
+    background: #f1f4f5;
+  }
+  .ir-bubble[data-side='b'] {
+    background: #8de27b;
+    text-align: right;
+  }
+  .ir-bubble span {
+    display: block;
+  }
+  .tray {
+    background: #f4f6f7;
+    padding: 10px;
+    border-top: 1px solid #0002;
+    display: flex;
+    gap: 8px;
+  }
+  .tray button {
+    flex: 1;
+    font: inherit;
+    font-weight: 700;
+    border: 0;
+    border-radius: 18px;
+    padding: 11px;
+    background: #2b3a42;
+    color: #fff;
+    cursor: pointer;
+  }
+  .tray button:disabled {
+    opacity: 0.35;
+  }
+</style>
+<div class="phone">
+  <div class="top">
+    <b id="ti"></b><small id="su"></small>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="feed" id="f"></div>
+  <div class="tray"><button id="nx">Continue ▸</button></div>
+</div>
+<script src="lib.js"></script>
+<script>
+  IR.wire()
+  let L, A, U, i, lastStep
+  const add = (c, h) => {
+    const d = document.createElement('div')
+    d.className = c
+    d.innerHTML = h
+    f.appendChild(d)
+    f.scrollTop = 1e9
+  }
+  function start(a) {
+    A = a
+    U = IR.units(a)
+    i = 0
+    lastStep = null
+    f.innerHTML = ''
+    add('sys', `${IR.t(a.title)}<br>${IR.esc(a.can_do_en)}`)
+    next()
+    tabs
+      .querySelectorAll('button')
+      .forEach((b) => b.classList.toggle('on', +b.dataset.n === a.number))
+  }
+  function next() {
+    if (i >= U.length) {
+      add('sys', '— end of activity —')
+      nx.disabled = true
+      return
+    }
+    const u = U[i++]
+    if (u.step !== lastStep) {
+      lastStep = u.step
+      add('sys', IR.t(u.step.title) + ' · ' + IR.esc(u.step.title_en))
+    }
+    add(
+      'card',
+      `<span class=ir-en style="text-transform:uppercase;letter-spacing:.1em;font-size:10px">${IR.kind(u.task.kind)}</span>` +
+        IR.task(L, u.task),
+    )
+    nx.disabled = i >= U.length
+  }
+  nx.onclick = next
+  Promise.all([IR.load(IR.lessonNo())]).then(([l]) => {
+    L = l
+    ti.innerHTML = `第${l.number}課 ${IR.t({ text: l.title.ja })}`
+    su.textContent = l.title.en + ' · ' + l.topic.en
+    tabs.innerHTML = l.activities
+      .map((a) => `<button data-n=${a.number}>Activity ${a.number}</button>`)
+      .join('')
+    tabs.onclick = (e) => {
+      const b = e.target.closest('button')
+      if (b) {
+        nx.disabled = false
+        start(l.activities.find((a) => a.number == b.dataset.n))
+      }
+    }
+    start(l.activities[0])
+  })
+</script>
