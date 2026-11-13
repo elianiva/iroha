@@ -904,6 +904,52 @@
                         ),
                       )
                     : null,
+                  (s.sentences || []).map((x) =>
+                    h(
+                      'div',
+                      {},
+                      h('span', { class: 'tag' }, x.group),
+                      x.label + ' ',
+                      jp(x.ja),
+                      x.en ? h('div', { class: 'en' }, x.en) : null,
+                    ),
+                  ),
+                  (s.matrix || []).length
+                    ? h(
+                        'table',
+                        {},
+                        h(
+                          'tr',
+                          {},
+                          h('th', {}, ''),
+                          h('th', {}, ''),
+                          (s.matrix_columns || []).map((c) => h('th', {}, c)),
+                        ),
+                        s.matrix.map((r) =>
+                          h(
+                            'tr',
+                            {},
+                            h('th', {}, r.class),
+                            h('th', {}, r.polarity),
+                            r.cells.map((c) =>
+                              h(
+                                'td',
+                                {},
+                                h('b', {}, jp(c.pattern)),
+                                c.example
+                                  ? h(
+                                      'div',
+                                      {},
+                                      jp(c.example.ja),
+                                      c.example.en ? h('div', { class: 'en' }, c.example.en) : null,
+                                    )
+                                  : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
                   (s.grid || []).length
                     ? h(
                         'table',

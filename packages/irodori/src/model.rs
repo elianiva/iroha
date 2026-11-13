@@ -330,6 +330,14 @@ pub struct Note {
 
 #[derive(Debug, Default, Serialize)]
 pub struct RefSection {
+    /// Example sentences grouped under a heading, such as あげる・くれる and もらう.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sentences: Vec<GroupSentence>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub matrix_columns: Vec<String>,
+    /// Rows by word class and polarity, one cell per column.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub matrix: Vec<MatrixRow>,
     pub title: Text,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intro: Option<Block>,
@@ -345,6 +353,28 @@ pub struct RefSection {
     pub grid: Vec<Vec<Block>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footnote: Option<Block>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GroupSentence {
+    pub group: String,
+    pub label: String,
+    pub ja: Text,
+    pub en: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MatrixRow {
+    pub class: String,
+    pub polarity: String,
+    pub cells: Vec<MatrixCell>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MatrixCell {
+    pub pattern: Text,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub example: Option<Block>,
 }
 
 #[derive(Debug, Serialize)]

@@ -327,6 +327,97 @@ fn grid(ls: &[&RLine]) -> Option<(Vec<Vec<Block>>, Vec<usize>)> {
     Some((table, used))
 }
 
+/// A two-column table of sentence patterns (non-past, past) with rows by word class and polarity.
+fn matrix(ls: &[&RLine]) -> Option<(Vec<String>, Vec<MatrixRow>)> {
+    let mut heads: Vec<&&RLine> = ls.iter().filter(|l| plain(&l.t).starts_with("non-past") || plain(&l.t).starts_with("past")).collect();
+    heads.sort_by(|a, b| a.x.total_cmp(&b.x));
+    if heads.len() < 2 {
+        return None;
+    }
+    let columns: Vec<String> = heads.iter().map(|h| if plain(&h.t).starts_with("non-past") { "non-past" } else { "past" }.to_string()).collect();
+    let is_pat = |l: &RLine| l.x > 190.0 && (8.3..8.7).contains(&l.size) && matches!(plain(&l.t).chars().next(), Some('N' | 'Ｎ' | 'ナ' | 'イ' | 'V'));
+    let pats: Vec<&&RLine> = ls.iter().filter(|l| is_pat(l)).collect();
+    let mut xs: Vec<f32> = Vec::new();
+    for p in &pats {
+        if !xs.iter().any(|x| (x - p.x).abs() < 6.0) {
+            xs.push(p.x);
+        }
+    }
+    xs.sort_by(f32::total_cmp);
+    if xs.len() < 2 || pats.len() < 4 {
+        return None;
+    }
+    let mut ys: Vec<f32> = pats.iter().filter(|p| (p.x - xs[0]).abs() < 6.0).map(|p| p.y).collect();
+    ys.sort_by(|a, b| b.total_cmp(a));
+    let labels: Vec<&&RLine> = ls.iter().filter(|l| l.x < 175.0 && (9.0..9.5).contains(&l.size) && l.t.text.chars().filter(|c| c.is_ascii_alphabetic()).count() >= 4).collect();
+    let near = |y: f32, set: &[&&RLine]| set.iter().min_by(|a, b| (a.y - y).abs().total_cmp(&(b.y - y).abs())).map(|l| l.t.text.trim().to_string()).unwrap_or_default();
+    let pol: Vec<&&RLine> = labels.iter().filter(|l| matches!(plain(&l.t).as_str(), "affirmative" | "negative")).copied().collect();
+    let cls: Vec<&&RLine> = labels.iter().filter(|l| l.x < 135.0 && !matches!(plain(&l.t).as_str(), "affirmative" | "negative")).copied().collect();
+
+    let mut rows = Vec::new();
+    for ry in ys {
+        let mut cells: Vec<MatrixCell> = Vec::new();
+        for &cx in &xs {
+            let Some(p) = pats.iter().find(|p| (p.x - cx).abs() < 6.0 && (p.y - ry).abs() < 4.0) else { continue };
+            let ex = ls.iter().filter(|l| (8.3..8.7).contains(&l.size) && !is_pat(l) && (l.x - cx).abs() < 6.0 && l.y < p.y && p.y - l.y < 30.0).min_by(|a, b| b.y.total_cmp(&a.y));
+            let example = ex.map(|e| {
+                let en = ls.iter().filter(|g| g.size < 7.5 && is_latin(&g.t) && (g.x - cx).abs() < 6.0 && g.y < e.y && e.y - g.y < 14.0).min_by(|a, b| b.y.total_cmp(&a.y));
+                Block { ja: Some(e.t.clone()), en: en.map(|g| g.t.text.trim().to_string()).unwrap_or_default(), at: None }
+            });
+            cells.push(MatrixCell { pattern: p.t.clone(), example });
+        }
+        // The last row prints both columns' sentences on one line; cut them apart at the first 。.
+        for i in 1..cells.len() {
+            if cells[i].example.is_none() {
+                if let Some(prev) = cells[i - 1].example.as_mut() {
+                    let ja = prev.ja.clone().unwrap_or_default();
+                    let stops: Vec<usize> = ja.text.chars().enumerate().filter(|(_, c)| *c == '。').map(|(k, _)| k).collect();
+                    if stops.len() >= 2 {
+                        let a = stops[0] + 1;
+                        let second = ja.slice(a, ja.len());
+                        let (first_en, second_en) = match prev.en.find(".I ") {
+                            Some(k) => (prev.en[..=k].to_string(), prev.en[k + 1..].to_string()),
+                            None => (prev.en.clone(), String::new()),
+                        };
+                        prev.ja = Some(ja.slice(0, a));
+                        prev.en = first_en;
+                        cells[i].example = Some(Block { ja: Some(second), en: second_en, at: None });
+                    }
+                }
+            }
+        }
+        rows.push(MatrixRow { class: near(ry, &cls), polarity: near(ry, &pol), cells });
+    }
+    Some((columns, rows))
+}
+
+/// Numbered example sentences under a bracket heading (`［ あげる・くれる ］`), with their English.
+fn sentences(ls: &[&RLine]) -> (Vec<GroupSentence>, Vec<usize>) {
+    let mut idx: Vec<usize> = (0..ls.len()).filter(|&i| ls[i].x < 140.0 || ls[i].size < 7.5).collect();
+    idx.sort_by(|&a, &b| ls[b].y.total_cmp(&ls[a].y));
+    let (mut out, mut used) = (Vec::new(), Vec::new());
+    let mut group = String::new();
+    for &i in &idx {
+        let l = ls[i];
+        let t = l.t.text.trim();
+        if t.starts_with('［') && (9.0..9.5).contains(&l.size) && !t.contains('例') {
+            group = t.trim_matches(|c| matches!(c, '［' | '］' | ' ')).to_string();
+            used.push(i);
+            continue;
+        }
+        let first = t.chars().next().unwrap_or(' ');
+        if !group.is_empty() && ('①'..='⑳').contains(&first) && (8.7..9.1).contains(&l.size) {
+            let en = idx.iter().copied().find(|&j| ls[j].size < 8.0 && is_latin(&ls[j].t) && (ls[j].x - l.x).abs() < 20.0 && l.y - ls[j].y > 0.0 && l.y - ls[j].y < 14.0);
+            if let Some(j) = en {
+                used.push(j);
+            }
+            used.push(i);
+            out.push(GroupSentence { group: group.clone(), label: first.to_string(), ja: l.t.slice(1, l.t.len()), en: en.map(|j| ls[j].t.text.trim().to_string()).unwrap_or_default() });
+        }
+    }
+    (out, used)
+}
+
 pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
     let is_heading = |l: &RLine| l.x < 95.0 && (8.0..9.0).contains(&l.size) && l.t.text.chars().next().is_some_and(|c| c.is_ascii_digit()) && l.t.text.chars().nth(1) == Some('.');
     let mut chunks: Vec<(Option<&RLine>, Vec<&RLine>)> = vec![(None, vec![])];
@@ -356,7 +447,17 @@ pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
             let by_conjugation = ls.iter().any(|l| plain(&l.t) == "conjugationrules");
             let rules = if has_table && !by_conjugation { rules(&body) } else { vec![] };
             let mut table: Vec<Vec<Block>> = vec![];
-            let (patterns, intro) = match (rules.is_empty() && !by_conjugation, patterns(&ls)) {
+            let (sents, sent_used) = if has_table { (vec![], vec![]) } else { sentences(&ls) };
+            let intro: Vec<&RLine> = if sents.len() >= 2 {
+                // The diagram beside the sentences (labels at x > 340) is not prose.
+                intro.into_iter().filter(|l| l.x < 340.0 && !ls.iter().position(|x| std::ptr::eq(*x, *l)).is_some_and(|i| sent_used.contains(&i))).collect()
+            } else {
+                intro
+            };
+            let sents = if sents.len() >= 2 { sents } else { vec![] };
+            let mx = if rules.is_empty() && !by_conjugation { matrix(&ls) } else { None };
+            let intro = if mx.is_some() { vec![] } else { intro };
+            let (patterns, intro) = match (rules.is_empty() && !by_conjugation && mx.is_none(), patterns(&ls)) {
                 (true, Some((rows, used))) => {
                     let header_word = |l: &RLine| {
                         let t = &l.t.text;
@@ -383,6 +484,9 @@ pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
                 rules,
                 patterns,
                 grid: table,
+                sentences: sents,
+                matrix_columns: mx.as_ref().map(|m| m.0.clone()).unwrap_or_default(),
+                matrix: mx.map(|m| m.1).unwrap_or_default(),
                 footnote: bilingual(&footnote),
             }
         })
