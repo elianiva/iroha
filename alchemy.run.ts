@@ -97,12 +97,15 @@ export default Alchemy.Stack(
       // this when the API needs its own public URL or custom domain.
       workersDev: false,
     })
+
+    // The lesson JSON, audio and pictures. Upload them with `pnpm --filter @template/web upload-data`.
+    const data = yield* Cloudflare.R2.Bucket('LessonData')
     const Website = Cloudflare.Website.Foldkit('Website', {
       rootDir: stage === 'reference' ? 'examples/reference' : 'apps/web',
       main: 'src/worker.ts',
       dev: { port: 5173 },
-      env: { API: ApiWorker, ...sentryEnv, ...rateLimits },
-      assets: { runWorkerFirst: [`${API_PREFIX}/*`] },
+      env: { API: ApiWorker, DATA: data, ...sentryEnv, ...rateLimits },
+      assets: { runWorkerFirst: [`${API_PREFIX}/*`, '/data/*'] },
       compatibility: sentryCompatibility,
       observability,
     })
