@@ -1,0 +1,96 @@
+/* Structural defaults shared by every prototype; each prototype restyles the .ir-* classes. */
+.ir-ja {
+  font-family: inherit;
+}
+.ir-en {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.65;
+  font-weight: 400;
+}
+.ir-play {
+  cursor: pointer;
+  border: 0;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  margin: 0 6px 4px 0;
+  font-size: 12px;
+}
+.ir-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0;
+}
+.ir-opt {
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ir-opt img {
+  max-height: 90px;
+  border-radius: 6px;
+}
+.ir-opt b {
+  opacity: 0.6;
+}
+.ir-in {
+  font: inherit;
+  text-align: center;
+}
+.ir-vocab {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.ir-table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 0.9em;
+}
+.ir-table td,
+.ir-table th {
+  padding: 4px 10px;
+  border: 1px solid #8884;
+}
+.ir-table small {
+  display: block;
+  opacity: 0.6;
+}
+.ir-fillrow {
+  margin: 8px 0;
+}
+.ir-mark {
+  margin-left: 8px;
+  font-weight: 700;
+}
+.ir-fillrow[data-ok='1'] .ir-mark {
+  color: #1a9a4a;
+}
+.ir-fillrow[data-ok='0'] .ir-mark {
+  color: #d33;
+}
+.ir-chip {
+  display: inline-block;
+  margin: 3px;
+}
+.ir-turn {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0;
+}
+.ir-turn b {
+  min-width: 1.4em;
+}
+rt {
+  font-size: 0.5em;
+}
+.furi-off rt {
+  display: none;
+}
