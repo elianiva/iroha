@@ -165,6 +165,9 @@ pub struct Task {
     /// What the learner does: `listen`, `choose`, `fill`, `shadow`, `repeat`, `notice`, `vocab`, `practice` or `speak`.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub kind: String,
+    /// How the learner answers the prompts in `body`: `text` or `check`; empty when nothing is asked.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub response: String,
     pub instruction: Text,
     pub instruction_en: String,
     pub audio: Vec<String>,

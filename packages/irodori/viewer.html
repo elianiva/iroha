@@ -582,7 +582,17 @@
         for (const b of t.body) {
           if (b.ja && used.has(plain(b.ja))) continue
           el.append(
-            h('div', {}, b.ja ? jp(b.ja) : null, b.en ? h('div', { class: 'en' }, b.en) : null),
+            h(
+              'div',
+              {},
+              t.response === 'check' && b.ja ? h('input', { type: 'checkbox' }) : null,
+              t.response === 'check' && b.ja ? ' ' : null,
+              b.ja ? jp(b.ja) : null,
+              b.en ? h('div', { class: 'en' }, b.en) : null,
+              t.response === 'text' && b.ja
+                ? h('input', { class: 'blank', style: 'width:100%;text-align:left' })
+                : null,
+            ),
           )
         }
         if (t.kind === 'mark') {

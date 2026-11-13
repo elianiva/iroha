@@ -1229,6 +1229,14 @@ fn finish(task: &mut Task, last: &mut Vec<Choice>, scripts: &[Dialogue]) {
         task.body.retain(|b| b.ja.as_ref().is_none_or(|t| t.text.chars().any(|c| c.is_alphanumeric() || crate::layout::is_kanji(c) || crate::layout::is_kana(c))) || !b.en.is_empty());
     }
     vocab_from_body(task);
+    // Prompts printed in the body are answered by typing or ticking, depending on the task.
+    let prompts = task.body.iter().filter(|b| b.ja.is_some()).count();
+    task.response = match task.kind.as_str() {
+        "mark" if prompts > 0 => "check",
+        "answer" | "note" | "write" if prompts > 0 => "text",
+        _ => "",
+    }
+    .into();
     word_table(task);
     task.quiz = match task.kind.as_str() {
         "choose" => quiz_choose(task, last),
