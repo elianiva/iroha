@@ -281,6 +281,52 @@ fn patterns(ls: &[&RLine]) -> Option<(Vec<PatternRow>, Vec<usize>)> {
     Some((rows, used))
 }
 
+/// A plain table (`入る contain | 入れる put in`): 8.5pt lines on one baseline are the cells of a row.
+fn grid(ls: &[&RLine]) -> Option<(Vec<Vec<Block>>, Vec<usize>)> {
+    let mut idx: Vec<usize> = (0..ls.len()).filter(|&i| (8.0..8.8).contains(&ls[i].size)).collect();
+    idx.sort_by(|&a, &b| ls[b].y.total_cmp(&ls[a].y).then(ls[a].x.total_cmp(&ls[b].x)));
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    for i in idx {
+        match rows.last_mut() {
+            Some(r) if (ls[r[0]].y - ls[i].y).abs() <= 4.0 => r.push(i),
+            _ => rows.push(vec![i]),
+        }
+    }
+    // Keep the longest run of consecutive rows that have two or more cells.
+    let mut best: Vec<&Vec<usize>> = Vec::new();
+    let mut cur: Vec<&Vec<usize>> = Vec::new();
+    for r in &rows {
+        if r.len() >= 2 && cur.last().is_none_or(|p| ls[p[0]].y - ls[r[0]].y < 40.0) {
+            cur.push(r);
+        } else {
+            if cur.len() > best.len() {
+                best = cur.clone();
+            }
+            cur = if r.len() >= 2 { vec![r] } else { vec![] };
+        }
+    }
+    if cur.len() > best.len() {
+        best = cur;
+    }
+    if best.len() < 3 {
+        return None;
+    }
+    let mut used = Vec::new();
+    let table = best
+        .iter()
+        .map(|r| {
+            used.extend(r.iter().copied());
+            r.iter()
+                .map(|&i| {
+                    let (ja, en) = ls[i].t.split_en();
+                    Block { ja: Some(ja), en: en.unwrap_or_default(), at: None }
+                })
+                .collect()
+        })
+        .collect();
+    Some((table, used))
+}
+
 pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
     let is_heading = |l: &RLine| l.x < 95.0 && (8.0..9.0).contains(&l.size) && l.t.text.chars().next().is_some_and(|c| c.is_ascii_digit()) && l.t.text.chars().nth(1) == Some('.');
     let mut chunks: Vec<(Option<&RLine>, Vec<&RLine>)> = vec![(None, vec![])];
@@ -309,12 +355,25 @@ pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
             };
             let by_conjugation = ls.iter().any(|l| plain(&l.t) == "conjugationrules");
             let rules = if has_table && !by_conjugation { rules(&body) } else { vec![] };
+            let mut table: Vec<Vec<Block>> = vec![];
             let (patterns, intro) = match (rules.is_empty() && !by_conjugation, patterns(&ls)) {
                 (true, Some((rows, used))) => {
-                    let header_word = |l: &RLine| is_latin(&l.t) && l.t.text.split_whitespace().count() <= 2 && !l.t.text.contains('.');
+                    let header_word = |l: &RLine| {
+                        let t = &l.t.text;
+                        let cell = (t.contains("［例］") && t.chars().count() <= 16) || (["名詞", "形容詞", "動詞", "文型"].iter().any(|w| t.contains(w)) && t.chars().count() <= 14) || (t.contains("adjective") && t.chars().count() <= 30);
+                        let cjk = t.chars().any(|c| matches!(c, '\u{3040}'..='\u{9fff}'));
+                        cell || (!cjk && t.split_whitespace().count() <= 2 && t.chars().any(|c| c.is_ascii_alphabetic()) && !t.contains('.'))
+                    };
                     let keep = intro.into_iter().filter(|l| !ls.iter().position(|x| std::ptr::eq(*x, *l)).is_some_and(|i| used.contains(&i)) && !header_word(l));
                     (rows, keep.collect())
                 }
+                (true, None) if !by_conjugation => match grid(&ls) {
+                    Some((rows, used)) => {
+                        table = rows;
+                        (vec![], intro.into_iter().filter(|l| !ls.iter().position(|x| std::ptr::eq(*x, *l)).is_some_and(|i| used.contains(&i))).collect())
+                    }
+                    None => (vec![], intro),
+                },
                 _ => (vec![], intro),
             };
             RefSection {
@@ -323,6 +382,7 @@ pub fn sections(lines: &[RLine]) -> Vec<RefSection> {
                 groups: if has_table && by_conjugation { groups(&body) } else { vec![] },
                 rules,
                 patterns,
+                grid: table,
                 footnote: bilingual(&footnote),
             }
         })

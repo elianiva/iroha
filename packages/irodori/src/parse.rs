@@ -102,7 +102,7 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
             for j in t + 1..lines.len() {
                 let l = lines[j];
                 let dx = l.x - lines[t].x;
-                if is_turn(l) || used.contains(&j) || !(8.0..=62.0).contains(&dx) || ID_ONLY.is_match(l.text.trim()) {
+                if is_turn(l) || used.contains(&j) || !((8.0..=62.0).contains(&dx) || (dx > -2.0 && l.text.starts_with(char::is_whitespace))) || ID_ONLY.is_match(l.text.trim()) {
                     if prev_y - l.y > 2.8 * l.size.max(8.0) {
                         break;
                     }
@@ -221,6 +221,8 @@ struct Builder {
     choice_at: Option<(usize, f32)>,
     /// Width of the line being read, to place choices that share a line.
     line_w: f32,
+    /// True while only small note-box text has appeared since the last dialogue.
+    after_dialogue: bool,
     /// A script that is one speaker's text, not A/B turns, collected under its track id.
     mono: Option<Dialogue>,
     /// Lines of `◆` reference notes, keyed by note index, for table parsing.
@@ -300,11 +302,15 @@ impl Builder {
         match item {
             Item::Line { text, size, x, w, y, page } => {
                 self.line_w = w;
+                if size >= 9.5 {
+                    self.after_dialogue = false;
+                }
                 self.line(text, size, x, (page, y))
             }
             Item::Dialogue(d) => {
                 self.mono = None;
-                self.dialogue(d)
+                self.dialogue(d);
+                self.after_dialogue = true;
             }
         }
     }
@@ -327,10 +333,11 @@ impl Builder {
                     }
                 }
                 Mode::Activity => {
+                    let after = self.after_dialogue;
                     let named = d.turns.iter().all(|t| !matches!(t.speaker.as_str(), "A" | "B" | "C"));
                     if let Some(t) = self.task() {
                         // A named script split by a note box continues the previous piece.
-                        if let (true, None, Some(prev)) = (named, &d.audio, t.dialogues.last_mut().filter(|p| p.audio.is_none())) {
+                        if let (true, true, None, Some(prev)) = (named, after, &d.audio, t.dialogues.last_mut().filter(|p| p.audio.is_none())) {
                             prev.turns.extend(d.turns);
                             self.slot = Slot::None;
                             return;
@@ -811,6 +818,8 @@ fn classify(t: &Task) -> &'static str {
         "repeat"
     } else if s.contains("○を書") {
         "mark"
+    } else if s.contains("並べましょう") || s.contains("順番に") {
+        "order"
     } else if !t.choices.is_empty() || s.contains("選びましょう") {
         "choose"
     } else if s.starts_with("音声を聞いて") {

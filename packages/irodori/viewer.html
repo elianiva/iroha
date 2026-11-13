@@ -904,6 +904,26 @@
                         ),
                       )
                     : null,
+                  (s.grid || []).length
+                    ? h(
+                        'table',
+                        {},
+                        s.grid.map((r) =>
+                          h(
+                            'tr',
+                            {},
+                            r.map((c) =>
+                              h(
+                                'td',
+                                {},
+                                c.ja ? jp(c.ja) : null,
+                                c.en ? h('span', { class: 'en' }, '  ' + c.en) : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : null,
                   (s.patterns || []).length
                     ? h(
                         'table',

@@ -340,6 +340,9 @@ pub struct RefSection {
     /// Sentence patterns with example phrases, for `～んです`-style boxes.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub patterns: Vec<PatternRow>,
+    /// A plain table: rows of cells, the first row usually naming the columns.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub grid: Vec<Vec<Block>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footnote: Option<Block>,
 }
