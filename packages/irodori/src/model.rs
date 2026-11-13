@@ -178,6 +178,9 @@ pub struct Task {
     pub vocab: Vec<Vocab>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<Table>,
+    /// An answer table: one column per person or track, one row per thing to note down.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grid: Option<Grid>,
     /// Pattern-practice speech bubbles, in reading order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub practice: Vec<Bubble>,
@@ -186,6 +189,12 @@ pub struct Task {
     pub quiz: Option<Quiz>,
     /// Any other Japanese on the page for this task.
     pub body: Vec<Block>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Grid {
+    pub columns: Vec<Text>,
+    pub rows: Vec<Text>,
 }
 
 /// A speech bubble from a pattern-practice diagram. Lines are alternatives or consecutive sentences.
@@ -265,6 +274,12 @@ pub struct Choice {
     pub ja: Text,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub en: Option<String>,
+    /// The picture printed under the label, as a path relative to the lesson folder.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    /// Page, x and baseline of the label, when it stands on a line of its own; never serialized.
+    #[serde(skip)]
+    pub at: Option<(usize, f32, f32)>,
 }
 
 #[derive(Debug, Serialize)]
@@ -292,6 +307,9 @@ pub struct Note {
     /// `grammar` for the numbered grammar notes, `reference` for lettered sections, `column` for culture columns.
     pub kind: String,
     pub title: Text,
+    /// The sentence pattern box under the number, one text per line.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pattern: Vec<Text>,
     /// Sample sentences and running text.
     pub blocks: Vec<Block>,
     /// Explanation bullets, English with the Japanese bullet that follows it.

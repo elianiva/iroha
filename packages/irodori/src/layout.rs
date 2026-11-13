@@ -17,6 +17,8 @@ pub struct Line {
     pub x: f32,
     pub y: f32,
     pub size: f32,
+    /// Width of the line in points.
+    pub w: f32,
     pub text: String,
     pub ruby: Vec<Ruby>,
 }
@@ -188,7 +190,7 @@ fn attach(page: usize, group: Vec<Piece>, ruby: &[Piece]) -> Line {
             _ => merged.push(r),
         }
     }
-    Line { page, x, y, size, text, ruby: merged }
+    Line { page, x, y, size, w: x_end - x, text, ruby: merged }
 }
 
 /// Saves the pictures of every page as PNGs under `dir` and lists them. Tiny icons are skipped.

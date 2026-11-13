@@ -14,10 +14,10 @@ static CAN_DO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d\d)(\D.*)?$")
 static EXAMPLE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?:［\s*例\s*］)?\s*(?:▶)?\s*([①-⑩])?\s*(?:([Ａ-Ｃ])\s*：)?\s*(.*)$").unwrap()
 });
-static CHOICE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:^|\s|[^\x00-\x7f])([a-iA-Dア-ク])\s?\.\s*").unwrap());
+static CHOICE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:^|\s|[^\x00-\x7f])([a-lA-Dア-ク])\s?\.\s*").unwrap());
 
 enum Item {
-    Line { text: Text, size: f32, x: f32, y: f32, page: usize },
+    Line { text: Text, size: f32, x: f32, w: f32, y: f32, page: usize },
     Dialogue(Dialogue),
 }
 
@@ -43,15 +43,48 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
             lines[i..j].sort_by(|a, b| a.x.total_cmp(&b.x));
             i = j;
         }
+        // A track label printed a few points above its task heading belongs to that heading.
+        for i in 0..lines.len().saturating_sub(1) {
+            let (a, b) = (lines[i], lines[i + 1]);
+            if ID_ONLY.is_match(a.text.trim()) && a.y - b.y <= 8.0 && b.x < a.x && b.text.starts_with(['(', '（']) {
+                lines.swap(i, i + 1);
+            }
+        }
+        // The PDF often pads the label (`Ａ ：`), so look past blanks.
         let is_turn = |l: &Line| {
-            let mut c = l.text.chars();
-            matches!(c.next(), Some('Ａ' | 'Ｂ' | 'Ｃ')) && c.next() == Some('：')
+            let mut c = l.text.chars().filter(|c| !c.is_whitespace());
+            // Grammar-note examples are set smaller (8.9pt) and are read as note lines.
+            l.size >= 9.5 && matches!(c.next(), Some('Ａ' | 'Ｂ' | 'Ｃ')) && c.next() == Some('：')
         };
         let ids: Vec<(f32, f32, String)> = lines
             .iter()
             .filter(|l| ID_ONLY.is_match(l.text.trim()))
             .map(|l| (l.x, l.y, l.text.trim().to_string()))
             .collect();
+
+        // Lines indented under a turn continue it (`でも、夏は…` after `Ｂ：…`).
+        let mut cont: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut used: HashSet<usize> = HashSet::new();
+        for t in (0..lines.len()).filter(|&t| is_turn(lines[t])) {
+            let mut prev_y = lines[t].y;
+            for j in t + 1..lines.len() {
+                let l = lines[j];
+                let dx = l.x - lines[t].x;
+                if is_turn(l) || used.contains(&j) || !(8.0..=45.0).contains(&dx) || ID_ONLY.is_match(l.text.trim()) {
+                    if prev_y - l.y > 2.8 * l.size.max(8.0) {
+                        break;
+                    }
+                    continue;
+                }
+                if prev_y - l.y > 2.8 * l.size.max(8.0) {
+                    break;
+                }
+                prev_y = l.y;
+                used.insert(j);
+                cont.entry(t).or_default().push(j);
+            }
+        }
+        let bottom = |i: usize| cont.get(&i).and_then(|c| c.last()).map_or(lines[i].y, |&j| lines[j].y);
 
         // One column of turns per x position; a big vertical gap starts a new dialogue.
         let mut columns: Vec<Vec<usize>> = Vec::new();
@@ -66,7 +99,7 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
             let mut cur: Vec<usize> = Vec::new();
             for i in col {
                 if let Some(&p) = cur.last() {
-                    if lines[p].y - lines[i].y > 3.5 * lines[i].size {
+                    if bottom(p) - lines[i].y > 3.5 * lines[i].size {
                         groups.push(std::mem::take(&mut cur));
                     }
                 }
@@ -74,7 +107,7 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
             }
             groups.push(cur);
         }
-        let turn_ids: HashSet<usize> = groups.iter().flatten().copied().collect();
+        let turn_ids: HashSet<usize> = groups.iter().flatten().copied().chain(used.iter().copied()).collect();
         let mut dialogues: HashMap<usize, Dialogue> = HashMap::new();
         for g in &groups {
             let first = lines[g[0]];
@@ -89,7 +122,10 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
             let turns = g
                 .iter()
                 .map(|&i| {
-                    let t = Text::from_line(lines[i]);
+                    let mut t = Text::from_line(lines[i]);
+                    for &j in cont.get(&i).into_iter().flatten() {
+                        t.push(&Text::from_line(lines[j]));
+                    }
                     let speaker = match lines[i].text.chars().next() {
                         Some('Ａ') => "A",
                         Some('Ｂ') => "B",
@@ -107,7 +143,7 @@ fn items(pages: &[Vec<Line>]) -> Vec<Item> {
                 }
                 continue;
             }
-            out.push(Item::Line { text: Text::from_line(l), size: l.size, x: l.x, y: l.y, page: l.page });
+            out.push(Item::Line { text: Text::from_line(l), size: l.size, x: l.x, w: l.w, y: l.y, page: l.page });
         }
     }
     out
@@ -132,6 +168,7 @@ enum Slot {
     Instr,
     Block,
     NoteTitle,
+    Pattern,
     Choice,
     Point,
     JaPoint,
@@ -148,6 +185,10 @@ struct Builder {
     scripts: Vec<Dialogue>,
     /// Page and baseline of the last choice row, so options on one baseline share a row.
     choice_at: Option<(usize, f32)>,
+    /// Width of the line being read, to place choices that share a line.
+    line_w: f32,
+    /// A script that is one speaker's text, not A/B turns, collected under its track id.
+    mono: Option<Dialogue>,
     /// Lines of `◆` reference notes, keyed by note index, for table parsing.
     ref_lines: Vec<(usize, crate::reference::RLine)>,
 }
@@ -184,6 +225,14 @@ fn strip_ids(t: &Text) -> Text {
 }
 
 impl Builder {
+    fn flush_mono(&mut self) {
+        if let Some(m) = self.mono.take() {
+            if !m.turns.is_empty() {
+                self.scripts.push(m);
+            }
+        }
+    }
+
     fn steps(&mut self) -> Option<&mut Vec<Step>> {
         match self.mode {
             Mode::Activity => self.activities.last_mut().map(|a| &mut a.steps),
@@ -215,8 +264,19 @@ impl Builder {
 
     fn item(&mut self, item: Item) {
         match item {
-            Item::Line { text, size, x, y, page } => self.line(text, size, x, (page, y)),
-            Item::Dialogue(d) => match self.mode {
+            Item::Line { text, size, x, w, y, page } => {
+                self.line_w = w;
+                self.line(text, size, x, (page, y))
+            }
+            Item::Dialogue(d) => {
+                self.mono = None;
+                self.dialogue(d)
+            }
+        }
+    }
+
+    fn dialogue(&mut self, d: Dialogue) {
+        match self.mode {
                 // A dialogue with no track id continues the previous one across a page or gap.
                 Mode::Scripts => match (&d.audio, self.scripts.last_mut()) {
                     (None, Some(prev)) => prev.turns.extend(d.turns),
@@ -243,7 +303,6 @@ impl Builder {
                     self.slot = Slot::None;
                 }
                 _ => {}
-            },
         }
     }
 
@@ -262,7 +321,7 @@ impl Builder {
             self.slot = Slot::None;
             return;
         }
-        if size > 12.0 && ('\u{278a}'..='\u{2793}').contains(&first) {
+        if size > 12.0 && (('\u{278a}'..='\u{2793}').contains(&first) || ('\u{2776}'..='\u{277f}').contains(&first)) {
             self.mode = Mode::Notes;
             let rest = t.slice(1, t.len());
             let note = Note { kind: "grammar".into(), title: rest.clone(), ..Default::default() };
@@ -297,12 +356,21 @@ impl Builder {
         }
 
         match self.mode {
-            Mode::Front | Mode::Scripts => {}
+            Mode::Front => {}
+            Mode::Scripts => {
+                let id = t.text.trim().to_string();
+                if ID.is_match(&id) && id.chars().count() == 5 {
+                    self.flush_mono();
+                    self.mono = Some(Dialogue { audio: Some(id), turns: vec![] });
+                } else if let (Some(m), true) = (self.mono.as_mut(), (9.0..11.0).contains(&size) && x > 150.0) {
+                    m.turns.push(Turn { speaker: String::new(), text: t });
+                }
+            }
             Mode::Notes if self.notes.last().is_some_and(|n| n.kind == "reference") => {
                 let idx = self.notes.len() - 1;
                 self.ref_lines.push((idx, crate::reference::RLine { t, size, x, y: at.1 }));
             }
-            Mode::Notes => self.note_line(t),
+            Mode::Notes => self.note_line(t, size),
             Mode::Kanji => self.kanji_line(t, size),
             Mode::Activity => self.activity_line(t, size, x, at),
         }
@@ -324,14 +392,19 @@ impl Builder {
         }
     }
 
-    fn note_line(&mut self, t: Text) {
+    fn note_line(&mut self, t: Text, size: f32) {
         let slot = self.slot;
         let Some(note) = self.notes.last_mut() else { return };
-        if slot == Slot::NoteTitle {
-            note.title = t;
-            self.slot = Slot::Block;
+        // The sentence pattern is printed in a box under the number, in 11pt lines.
+        if matches!(slot, Slot::NoteTitle | Slot::Pattern) && (11.0..11.6).contains(&size) && note.kind == "grammar" {
+            note.pattern.push(t);
+            self.slot = Slot::Pattern;
             return;
         }
+        if slot == Slot::NoteTitle || slot == Slot::Pattern {
+            self.slot = Slot::Block;
+        }
+        let slot = self.slot;
         let s = t.text.clone();
 
         // `［例］▶①Ａ：…` opens an example; later `Ｂ：…` lines are its turns, English lines their glosses.
@@ -396,6 +469,7 @@ impl Builder {
     fn activity_line(&mut self, t: Text, size: f32, x: f32, at: (usize, f32)) {
         let s = t.text.clone();
         let prev_choice = self.choice_at.take();
+        let line_w = self.line_w;
         let slot = self.slot;
 
         // Step heading, such as `1会話を聞きましょう。`.
@@ -495,7 +569,7 @@ impl Builder {
                 let a = ci(&body.text, c.get(0).unwrap().end());
                 let b = marks.get(i + 1).map_or(body.len(), |n| ci(&body.text, n.get(1).unwrap().start()));
                 let (ja, en) = body.slice(a, b).split_en();
-                row.push(Choice { label: c[1].to_string(), ja, en });
+                row.push(Choice { label: c[1].to_string(), ja, en, image: None, at: (marks.len() == 1 || task.number == 0).then_some((at.0, x + line_w * ci(&body.text, c.get(1).unwrap().start()) as f32 / body.len().max(1) as f32, at.1)) });
             }
             match task.choices.last_mut() {
                 Some(last) if prev_choice.is_some_and(|(p, y)| p == at.0 && (y - at.1).abs() <= 2.0) => last.extend(row),
@@ -504,6 +578,19 @@ impl Builder {
             self.choice_at = Some(at);
             self.slot = Slot::Choice;
             return;
+        }
+
+        // A choice that wraps onto a second line, such as `じめじめする／` then `蒸し暑い`.
+        if let (Slot::Choice, Some((page, y))) = (slot, prev_choice) {
+            if page == at.0 && y - at.1 > 0.0 && y - at.1 <= 20.0 && !is_en(&body) {
+                if let Some(c) = task.choices.last_mut().and_then(|r| r.last_mut()) {
+                    if c.at.is_some_and(|(_, cx, _)| (x - cx).abs() < 40.0) {
+                        c.ja.push(&body);
+                        self.choice_at = Some(at);
+                        return;
+                    }
+                }
+            }
         }
 
         if is_en(&body) {
@@ -762,6 +849,26 @@ fn quiz_choose(task: &Task, inherited: &[Choice]) -> Option<Quiz> {
             None => prompt = Some(t.clone()),
         }
     }
+    if let Some(g) = &task.grid {
+        let options: Vec<Choice> = rows.iter().flatten().cloned().collect();
+        let ask = |col: &Text, row: Option<&Text>| {
+            let mut p = col.clone();
+            if let Some(r) = row {
+                p.push(&Text { text: "：".into(), ruby: vec![] });
+                p.push(r);
+            }
+            Question { prompt: Some(p), options: options.clone() }
+        };
+        let per_col = |col: &Text| -> Vec<Question> {
+            if g.rows.is_empty() { vec![ask(col, None)] } else { g.rows.iter().map(|r| ask(col, Some(r))).collect() }
+        };
+        let items = if ids.len() > 1 && ids.len() == g.columns.len() {
+            ids.iter().zip(&g.columns).map(|(id, c)| ChooseItem { audio: id.clone(), questions: per_col(c) }).collect()
+        } else {
+            vec![ChooseItem { audio: ids[0].clone(), questions: g.columns.iter().flat_map(per_col).collect() }]
+        };
+        return Some(Quiz::Choose { items });
+    }
     let items = ids
         .iter()
         .enumerate()
@@ -834,11 +941,127 @@ fn quiz_fill(task: &mut Task, scripts: &[Dialogue]) -> Option<Quiz> {
     (!items.is_empty()).then_some(Quiz::Fill { items })
 }
 
+/// Gives each choice the picture printed just below its label.
+fn link_images(task: &mut Task, images: &[Image]) {
+    for c in task.choices.iter_mut().flatten() {
+        let Some((page, x, y)) = c.at else { continue };
+        c.image = images
+            .iter()
+            .filter(|i| i.page == page && i.y + i.h <= y + 3.0 && y - (i.y + i.h) < 60.0 && x >= i.x - 20.0 && x <= i.x + i.w)
+            .min_by(|a, b| (y - a.y - a.h).total_cmp(&(y - b.y - b.h)))
+            .map(|i| i.file.clone());
+    }
+    task.subtasks.iter_mut().for_each(|t| link_images(t, images));
+}
+
 /// Sets each task's kind, nests bubbles, and builds quizzes. `last` carries the latest options so
 /// a task that says "choose from a-i of 1" reuses the options printed earlier in the activity.
+fn body_rows(body: &[Block]) -> Vec<std::ops::Range<usize>> {
+    let mut rows: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut i = 0;
+    while i < body.len() {
+        let Some((page, _, y)) = body[i].at else {
+            i += 1;
+            continue;
+        };
+        let mut j = i + 1;
+        while j < body.len() && body[j].at.is_some_and(|(p, _, y2)| p == page && (y2 - y).abs() <= 2.0) {
+            j += 1;
+        }
+        rows.push(i..j);
+        i = j;
+    }
+    rows
+}
+
+fn short_label(b: &Block) -> bool {
+    b.en.is_empty()
+        && b.ja.as_ref().is_some_and(|t| {
+            t.len() <= 10 && t.text.chars().any(|c| c.is_alphanumeric() || crate::layout::is_kanji(c) || crate::layout::is_kana(c))
+        })
+}
+
+/// Finds an answer table: a header row of names, then one short label per row below it.
+fn extract_grid(task: &mut Task) {
+    let rows = body_rows(&task.body);
+    let Some(h) = rows.iter().position(|r| r.len() >= 2 && task.body[r.clone()].iter().all(|b| short_label(b) && b.ja.as_ref().is_some_and(|t| t.text.ends_with("さん")))) else { return };
+    let columns: Vec<Text> = task.body[rows[h].clone()].iter().filter_map(|b| b.ja.clone()).collect();
+    let mut labels: Vec<Text> = Vec::new();
+    let mut last_y: Option<f32> = None;
+    let mut taken = vec![rows[h].clone()];
+    for r in &rows[h + 1..] {
+        let b = &task.body[r.start];
+        if r.len() != 1 || !short_label(b) {
+            break;
+        }
+        let y = b.at.unwrap().2;
+        match (labels.last_mut(), last_y) {
+            // A label that wraps (`仕事や生活は` / `どう？`) sits under its first half.
+            (Some(l), Some(ly)) if ly - y <= 16.0 => l.push(b.ja.as_ref().unwrap()),
+            _ => labels.push(b.ja.clone().unwrap()),
+        }
+        last_y = Some(y);
+        taken.push(r.clone());
+    }
+    let mut idx = 0;
+    task.body.retain(|_| {
+        idx += 1;
+        !taken.iter().any(|r| r.contains(&(idx - 1)))
+    });
+    task.grid = Some(Grid { columns, rows: labels });
+}
+
+/// Folds an English-only gloss that landed in the body back into the instruction.
+fn fold_instruction(task: &mut Task) {
+    if task.number == 0 || !task.instruction_en.is_empty() || task.instruction.is_empty() {
+        return;
+    }
+    let Some(first) = task.body.first() else { return };
+    let (Some(ja), false) = (first.ja.as_ref(), first.en.is_empty()) else { return };
+    if ja.text.starts_with("にことば") {
+        return;
+    }
+    let b = task.body.remove(0);
+    task.instruction.push(b.ja.as_ref().unwrap());
+    task.instruction_en = b.en;
+}
+
+/// Turns `川野：…` lines (a script printed with names, not A/B) into a dialogue.
+fn named_dialogue(task: &mut Task) {
+    let colon = |b: &Block| {
+        let t = b.ja.as_ref()?;
+        let at = t.text.chars().position(|c| c == '：')?;
+        (1..=5).contains(&at).then_some(at)
+    };
+    if task.body.iter().filter(|b| colon(b).is_some()).count() < 3 {
+        return;
+    }
+    let mut turns: Vec<Turn> = Vec::new();
+    for b in task.body.drain(..) {
+        let Some(t) = b.ja else { continue };
+        match colon(&Block { ja: Some(t.clone()), ..Default::default() }) {
+            Some(at) => turns.push(Turn { speaker: t.slice(0, at).text, text: t.slice(at + 1, t.len()) }),
+            None => match turns.last_mut() {
+                Some(last) => last.text.push(&t),
+                None => {}
+            },
+        }
+    }
+    task.dialogues.push(Dialogue { audio: task.audio.first().cloned(), turns });
+}
+
 fn finish(task: &mut Task, last: &mut Vec<Choice>, scripts: &[Dialogue]) {
     bubbles(task);
+    named_dialogue(task);
+    fold_instruction(task);
     task.kind = classify(task).into();
+    if matches!(task.kind.as_str(), "choose" | "mark" | "note" | "answer" | "write" | "") {
+        extract_grid(task);
+    }
+    // Punctuation-only cells (`，` in an answer box) carry nothing; fill rows need them as blank markers.
+    if task.kind != "fill" {
+        task.body.retain(|b| b.ja.as_ref().is_none_or(|t| t.text.chars().any(|c| c.is_alphanumeric() || crate::layout::is_kanji(c) || crate::layout::is_kana(c))) || !b.en.is_empty());
+    }
     task.quiz = match task.kind.as_str() {
         "choose" => quiz_choose(task, last),
         "fill" => quiz_fill(task, scripts),
@@ -866,19 +1089,32 @@ pub fn parse(number: u32, topic_en: &str, title_en: &str, audio: Vec<AudioFile>,
             .map(|l| l.text.trim_start_matches('第'))
             .collect::<String>();
         // The PDF pads the title with spaces between Japanese characters.
-        format!("{head}{tail}").replace([' ', '\u{3000}', '\t'], "").replace('\u{a4}', "")
+        format!("{head}{tail}").replace([' ', '\u{3000}', '\t'], "").replace('\u{a4}', "").trim_end_matches('課').to_string()
     });
 
     let mut b = Builder::default();
     for item in items(pages) {
         b.item(item);
     }
+    b.flush_mono();
     for act in &mut b.activities {
         let mut last = Vec::new();
         for task in act.steps.iter_mut().flat_map(|s| &mut s.tasks) {
             expand(task, &audio);
             group_tables(task);
+            link_images(task, &images);
             finish(task, &mut last, &b.scripts);
+        }
+    }
+    // A note whose title is its pattern (`ナA-です いちばん`) takes the box lines as its title.
+    for note in &mut b.notes {
+        if note.title.is_empty() {
+            for p in &note.pattern {
+                if !note.title.is_empty() {
+                    note.title.push(&Text { text: " ".into(), ruby: vec![] });
+                }
+                note.title.push(p);
+            }
         }
     }
     for idx in 0..b.notes.len() {
