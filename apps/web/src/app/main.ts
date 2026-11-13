@@ -4,6 +4,8 @@ import { UrlRequest, load, pushUrl } from 'foldkit/navigation'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { indexQuery, lessonQuery } from '../data/queries.ts'
 import { AppRoute, urlToAppRoute } from './route.ts'
+import { LoadProgress, SaveProgress } from './progress.ts'
+import { emptyProgress, finish } from './progress-schema.ts'
 import { Message, Model } from './state.ts'
 import { Schema } from 'effect'
 
@@ -103,13 +105,36 @@ export const init: Runtime.RoutingApplicationInit<Model, Message> = (url) => {
     hideScripts: false,
     menu: false,
     playing: '',
+    progress: emptyProgress,
+    today: '1970-01-01',
+    unit: 0,
     picks: {},
     typed: {},
     checked: [],
     revealed: [],
   })
-  return then(index.loadIfMissing(model), loadFor)
+  return then(then(index.loadIfMissing(model), loadFor), (next) =>
+    then(visit(next), (m) => ({ model: m, commands: [LoadProgress()] })),
+  )
 }
+
+/** Opening a study page (kanji, grammar, scripts) counts as doing it. */
+const visit = (model: Model): Return => {
+  if (model.route._tag !== 'Section' || model.route.section.startsWith('activity-'))
+    return { model }
+  const progress = finish(
+    model.progress,
+    `${model.route.number}.${model.route.section}`,
+    5,
+    model.today,
+  )
+  return progress === model.progress ? { model } : saved(model, progress)
+}
+
+const saved = (model: Model, progress: Model['progress']): Return => ({
+  model: { ...model, progress },
+  commands: [SaveProgress({ progress })],
+})
 
 const toggle = (list: ReadonlyArray<string>, key: string): ReadonlyArray<string> =>
   list.includes(key) ? list.filter((k) => k !== key) : [...list, key]
@@ -122,9 +147,9 @@ export const update = (model: Model, message: Message): Return =>
         External: ({ href }) => ({ model, commands: [LoadExternal({ href })] }),
       }),
     ChangedUrl: ({ url }) => {
-      const next = { ...model, route: urlToAppRoute(url), menu: false }
+      const next = { ...model, route: urlToAppRoute(url), menu: false, unit: 0 }
       const hash = Option.isSome(url.hash)
-      return then({ model: next, commands: hash ? [] : [ScrollTop()] }, loadFor)
+      return then(then({ model: next, commands: hash ? [] : [ScrollTop()] }, loadFor), visit)
     },
     Navigated: () => ({ model }),
     GotIndexMessage: ({ message }) => index.fold(model, message),
@@ -152,6 +177,32 @@ export const update = (model: Model, message: Message): Return =>
       },
     }),
     ToggledReveal: ({ key }) => ({ model: { ...model, revealed: toggle(model.revealed, key) } }),
+    LoadedProgress: ({ progress, today }) =>
+      saved(
+        { ...model, today },
+        {
+          done: [...new Set([...progress.done, ...model.progress.done])],
+          xp: progress.xp + model.progress.xp,
+          streak: progress.streak,
+          lastDay: progress.lastDay,
+        },
+      ),
+    ClickedContinue: ({ total }) => {
+      const next = model.unit + 1
+      if (next < total || model.route._tag !== 'Section') return { model: { ...model, unit: next } }
+      // The last exercise: the page is done, and the first time it earns XP and extends the streak.
+      return saved(
+        { ...model, unit: next },
+        finish(
+          model.progress,
+          `${model.route.number}.${model.route.section}`,
+          total * 2,
+          model.today,
+        ),
+      )
+    },
+    ClickedBack: () => ({ model: { ...model, unit: Math.max(0, model.unit - 1) } }),
+    ClickedRestart: () => ({ model: { ...model, unit: 0, checked: [] } }),
     ClickedRetry: () => {
       const n = lessonOf(model.route)
       return n === undefined

@@ -4,6 +4,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Url } from 'foldkit/url'
 import { indexQuery, lessonQuery } from '../data/queries.ts'
 import { AppRoute } from './route.ts'
+import { Progress } from './progress-schema.ts'
 
 export const Model = Schema.Struct({
   route: AppRoute,
@@ -19,6 +20,12 @@ export const Model = Schema.Struct({
   playing: Schema.String,
   /** The option picked in each choose question, by element key. */
   picks: Schema.Record(Schema.String, Schema.String),
+  /** Finished pages, XP and the streak, kept in this browser. */
+  progress: Progress,
+  /** Today as `YYYY-MM-DD`, read once at start. */
+  today: Schema.String,
+  /** The exercise on screen in the lesson player. */
+  unit: Schema.Finite,
   /** What was typed into each blank or answer box, by element key. */
   typed: Schema.Record(Schema.String, Schema.String),
   /** Fill exercises that were checked, and elements whose answers or text are shown. */
@@ -43,5 +50,9 @@ export const Message = defineMessageUnion({
   Checked: { key: Schema.String },
   ToggledReveal: { key: Schema.String },
   ClickedRetry: {},
+  LoadedProgress: { progress: Progress, today: Schema.String },
+  ClickedContinue: { total: Schema.Finite },
+  ClickedBack: {},
+  ClickedRestart: {},
 })
 export type Message = typeof Message.Type
