@@ -2,9 +2,8 @@ import type { Html } from 'foldkit/html'
 import { Check } from 'lucide'
 import { icon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { badge } from '@/components/ui/badge'
-import { button } from '@/components/ui/button'
 import { Message } from '../app/state.ts'
+import { norm } from '../app/units.ts'
 import { lessonUrl } from '../data/queries.ts'
 import type { Block, Choice, Dialogue, Quiz, Table, Task } from '../data/types.ts'
 import { type Child, type Ctx, en, has, jp, plain, playButton, plays } from '../ui/common.ts'
@@ -16,7 +15,7 @@ const KIND: Record<string, string> = {
   shadow: 'Shadow',
   repeat: 'Repeat',
   notice: 'Notice',
-  vocab: 'Words',
+  vocab: 'New words',
   practice: 'Practice',
   speak: 'Speak',
   mark: 'Mark',
@@ -25,21 +24,31 @@ const KIND: Record<string, string> = {
   write: 'Write',
   answer: 'Answer',
   order: 'Order',
+  intro: 'Warm up',
+  words: 'New words',
+  diagram: 'Pattern',
 }
 
-const norm = (s: string): string => s.replace(/[\s\u3000、。，,.]/g, '')
-
-const textInput = (c: Ctx, key: string, className: string, placeholder = ''): Child =>
+const textInput = (
+  c: Ctx,
+  key: string,
+  className: string,
+  state: 'ok' | 'bad' | 'open' = 'open',
+): Child =>
   c.h.input([
     c.h.Key(key),
     c.h.Type('text'),
     c.h.AriaLabel('Your answer'),
-    c.h.Placeholder(placeholder),
     c.h.Value(c.model.typed[key] ?? ''),
     c.h.OnInput((value) => Message.Typed({ key, value })),
     c.h.Class(
       cn(
-        'rounded-md border border-border bg-background px-2 py-1 text-[15px] outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+        'rounded-xl border-2 border-b-4 bg-white px-3 py-1.5 text-[18px] outline-none transition-colors focus:border-[#1cb0f6] focus:bg-[#f4fbff]',
+        state === 'ok'
+          ? 'border-[#58cc02] bg-[#e7f8d4]'
+          : state === 'bad'
+            ? 'border-[#ff4b4b] bg-[#ffe3e3]'
+            : 'border-[var(--line)]',
         className,
       ),
     ),
@@ -54,10 +63,8 @@ const optionCard = (c: Ctx, key: string, o: Choice, picked: boolean): Child =>
       c.h.OnClick(Message.Picked({ key, value: o.label })),
       c.h.Class(
         cn(
-          'flex min-w-24 flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-colors',
-          picked
-            ? 'border-primary bg-primary/5 ring-1 ring-primary'
-            : 'border-border bg-card hover:bg-muted',
+          'card3d flex min-w-28 flex-1 flex-col items-center gap-2 p-3 text-center',
+          picked && 'picked',
         ),
       ),
     ],
@@ -67,203 +74,165 @@ const optionCard = (c: Ctx, key: string, o: Choice, picked: boolean): Child =>
             c.h.Src(lessonUrl(c.lesson.number, o.image)),
             c.h.Alt(plain(o.ja)),
             c.h.Loading('lazy'),
-            c.h.Class('h-20 w-auto rounded-md object-contain'),
+            c.h.Class('h-28 w-auto rounded-xl object-contain'),
           ])
         : c.h.empty,
       c.h.span(
-        [c.h.Class('text-[15px] leading-snug')],
+        [c.h.Class('text-[18px] leading-snug font-bold')],
         [
           c.h.span(
-            [c.h.Class('mr-1 font-mono text-[12px] text-muted-foreground')],
-            [`${o.label}.`],
+            [
+              c.h.Class(
+                'mr-1.5 inline-grid size-6 place-items-center rounded-lg border-2 border-[var(--line)] align-middle text-[12px]',
+              ),
+            ],
+            [o.label],
           ),
           ...jp(c.h, o.ja),
         ],
       ),
-      en(c.h, o.en, 'text-[12px]'),
+      en(c.h, o.en),
     ],
   )
 
 const chooseQuiz = (c: Ctx, quiz: Extract<Quiz, { type: 'choose' }>, key: string): Child =>
   c.h.div(
-    [c.h.Class('mt-3 flex flex-col gap-3')],
-    [
-      ...quiz.items.flatMap((item, i) =>
-        item.questions.map((q, k) => {
-          const qkey = `${key}.c${i}.${k}`
-          return c.h.div(
-            [c.h.Key(qkey), c.h.Class('rounded-xl border border-border bg-muted/30 p-3')],
-            [
-              c.h.div(
-                [c.h.Class('mb-2 flex flex-wrap items-center gap-2')],
-                [
-                  item.audio ? playButton(c, item.audio) : c.h.empty,
-                  q.prompt
-                    ? c.h.span([c.h.Class('text-[15px] font-medium')], jp(c.h, q.prompt))
-                    : c.h.empty,
-                ],
-              ),
-              c.h.div(
-                [c.h.Class('flex flex-wrap gap-2')],
-                q.options.map((o) => optionCard(c, qkey, o, c.model.picks[qkey] === o.label)),
-              ),
-            ],
-          )
-        }),
-      ),
-      c.h.p(
-        [c.h.Class('text-[12px] text-muted-foreground')],
-        [
-          'The book prints no answer key for this task, so picks are not graded. Listen, choose, then check with a teacher.',
-        ],
-      ),
-    ],
+    [c.h.Class('mt-4 flex flex-col gap-5')],
+    quiz.items.flatMap((item, i) =>
+      item.questions.map((q, k) => {
+        const qkey = `${key}.c${i}.${k}`
+        return c.h.div(
+          [c.h.Key(qkey), c.h.Class('flex flex-col gap-2.5')],
+          [
+            c.h.div(
+              [c.h.Class('flex flex-wrap items-center gap-2.5')],
+              [
+                item.audio ? playButton(c, item.audio) : c.h.empty,
+                q.prompt
+                  ? c.h.span([c.h.Class('text-[17px] font-bold')], jp(c.h, q.prompt))
+                  : c.h.empty,
+              ],
+            ),
+            c.h.div(
+              [c.h.Class('flex flex-wrap gap-2.5')],
+              q.options.map((o) => optionCard(c, qkey, o, c.model.picks[qkey] === o.label)),
+            ),
+          ],
+        )
+      }),
+    ),
   )
 
 const fillQuiz = (c: Ctx, quiz: Extract<Quiz, { type: 'fill' }>, key: string): Child => {
   const checked = has(c.model.checked, key)
-  const shown = has(c.model.revealed, key)
-  const verdict = (
-    k: string,
-    answers: ReadonlyArray<ReadonlyArray<{ text: string }>>,
-    at: number,
-  ): 'ok' | 'bad' | 'open' => {
-    const value = c.model.typed[k] ?? ''
-    if (!checked || value.trim() === '' || answers.length === 0) return 'open'
-    return answers.some((a) => a[at] && norm(a[at].text) === norm(value)) ? 'ok' : 'bad'
-  }
-  let right = 0
-  let total = 0
-  const rows = quiz.items.map((item, i) => {
-    const children: Array<Child> = []
-    item.parts.forEach((part, at) => {
-      children.push(c.h.span([], jp(c.h, part)))
-      if (at < item.parts.length - 1) {
-        const k = `${key}.f${i}.${at}`
-        const v = verdict(k, item.answers, at)
-        if (
-          v !== 'open' ||
-          (checked && (c.model.typed[k] ?? '').trim() !== '' && item.answers.length > 0)
-        ) {
-          total += 1
-          if (v === 'ok') right += 1
-        }
-        children.push(
-          textInput(
-            c,
-            k,
-            cn(
-              'mx-1 w-32 text-center',
-              v === 'ok' && 'border-ok bg-ok/10',
-              v === 'bad' && 'border-danger bg-danger/10',
-            ),
-          ),
-        )
-      }
-    })
-    if (shown) {
-      children.push(
-        c.h.span(
-          [c.h.Class('ml-2 text-[13px] text-muted-foreground')],
-          item.answers.length === 0
-            ? ['(not in the book)']
-            : ['→ ', item.answers.map((a) => a.map((x) => x.text).join(' / ')).join('  |  ')],
-        ),
-      )
-    }
-    return c.h.div([c.h.Key(`${key}.f${i}`), c.h.Class('py-1.5 leading-loose')], children)
-  })
   return c.h.div(
-    [c.h.Class('mt-3 rounded-xl border border-border bg-muted/30 p-3')],
-    [
-      ...rows,
-      c.h.div(
-        [c.h.Class('mt-2 flex flex-wrap items-center gap-2')],
-        [
-          button(
-            { size: 'sm', onClick: Message.Checked({ key }), variant: 'default' },
-            'Check',
-            c.h,
-          ),
-          button(
-            { size: 'sm', variant: 'outline', onClick: Message.ToggledReveal({ key }) },
-            shown ? 'Hide answers' : 'Show answers',
-            c.h,
-          ),
-          checked && total > 0
-            ? c.h.span([c.h.Class('text-[13px] font-medium tabular-nums')], [`${right} / ${total}`])
-            : c.h.empty,
-        ],
-      ),
-    ],
+    [c.h.Class('mt-4 flex flex-col gap-1')],
+    quiz.items.map((item, i) => {
+      const children: Array<Child> = []
+      item.parts.forEach((part, at) => {
+        children.push(c.h.span([], jp(c.h, part)))
+        if (at < item.parts.length - 1) {
+          const k = `${key}.f${i}.${at}`
+          const value = c.model.typed[k] ?? ''
+          const graded = checked && item.answers.length > 0
+          const ok = item.answers.some((a) => norm(a[at]?.text ?? '\u0000') === norm(value))
+          children.push(
+            textInput(c, k, 'mx-1.5 w-36 text-center', graded ? (ok ? 'ok' : 'bad') : 'open'),
+          )
+        }
+      })
+      return c.h.div(
+        [c.h.Key(`${key}.f${i}`), c.h.Class('py-2 text-[19px] leading-[2.4]')],
+        children,
+      )
+    }),
   )
 }
 
-const dialogueView = (c: Ctx, d: Dialogue, key: string, blur = false): Child => {
+export const dialogueView = (c: Ctx, d: Dialogue, key: string, blur = false): Child => {
   const hidden = blur && c.model.hideScripts && !has(c.model.revealed, key)
+  const speakers = [...new Set(d.turns.map((t) => t.speaker))]
   return c.h.div(
     [
       c.h.Key(key),
       c.h.Class(
         cn(
-          'rounded-xl border border-border bg-card p-3',
+          'flex flex-col gap-2',
+          blur && 'card3d p-4',
           blur && c.model.hideScripts && 'cursor-pointer',
         ),
       ),
       ...(blur && c.model.hideScripts ? [c.h.OnClick(Message.ToggledReveal({ key }))] : []),
     ],
     [
-      d.audio ? c.h.div([c.h.Class('mb-1.5')], [playButton(c, d.audio)]) : c.h.empty,
+      d.audio ? c.h.div([], [playButton(c, d.audio)]) : c.h.empty,
       c.h.div(
         [
           c.h.Class(
-            cn('flex flex-col gap-1 transition-[filter]', hidden && 'blur-[7px] select-none'),
+            cn('flex flex-col gap-2 transition-[filter]', hidden && 'blur-[8px] select-none'),
           ),
         ],
-        d.turns.map((t, i) =>
-          c.h.div(
-            [c.h.Key(`${key}.${i}`), c.h.Class('flex gap-3 text-[15px] leading-relaxed')],
+        d.turns.map((t, i) => {
+          const right = speakers.indexOf(t.speaker) % 2 === 1
+          return c.h.div(
+            [
+              c.h.Key(`${key}.${i}`),
+              c.h.Class(cn('flex items-end gap-2', right && 'flex-row-reverse')),
+            ],
             [
               c.h.span(
                 [
                   c.h.Class(
-                    'w-12 shrink-0 text-right text-[12px] leading-[2] text-muted-foreground',
+                    cn(
+                      'grid size-8 shrink-0 place-items-center rounded-full text-[12px] font-black text-white',
+                      right ? 'bg-[#ff9600]' : 'bg-[#1cb0f6]',
+                    ),
                   ),
                 ],
-                [t.speaker],
+                [Array.from(t.speaker)[0] ?? '·'],
               ),
-              c.h.span([], jp(c.h, t.text)),
+              c.h.span(
+                [
+                  c.h.Class(
+                    cn(
+                      'max-w-[85%] rounded-2xl border-2 px-3.5 py-2 text-[17px] leading-relaxed',
+                      right
+                        ? 'rounded-br-md border-[#ffd9a3] bg-[#fff3df]'
+                        : 'rounded-bl-md border-[var(--line)] bg-white',
+                    ),
+                  ),
+                ],
+                jp(c.h, t.text),
+              ),
             ],
-          ),
-        ),
+          )
+        }),
       ),
     ],
   )
 }
 
-export { dialogueView }
-
 const tableView = (c: Ctx, tb: Table): Child =>
   c.h.div(
-    [c.h.Class('mt-2 overflow-x-auto rounded-lg border border-border')],
+    [c.h.Class('mt-3 overflow-x-auto rounded-2xl border-2 border-[var(--line)] bg-white')],
     [
       c.h.table(
-        [c.h.Class('w-full border-collapse text-[15px]')],
+        [c.h.Class('w-full border-collapse text-[17px]')],
         [
           tb.headings.length
             ? c.h.thead(
                 [],
                 [
                   c.h.tr(
-                    [c.h.Class('bg-muted')],
+                    [c.h.Class('bg-[var(--cs)]')],
                     tb.headings.map((x) =>
                       c.h.th(
-                        [c.h.Class('px-3 py-1.5 text-left font-medium')],
+                        [c.h.Class('px-3 py-2 text-left font-bold')],
                         [
                           ...jp(c.h, x.ja),
                           x.en
                             ? c.h.span(
-                                [c.h.Class('ml-1 text-[12px] font-normal text-muted-foreground')],
+                                [c.h.Class('ml-1 text-[12px] font-normal text-[var(--mute)]')],
                                 [x.en],
                               )
                             : c.h.empty,
@@ -278,11 +247,11 @@ const tableView = (c: Ctx, tb: Table): Child =>
             [],
             tb.rows.map((r, i) =>
               c.h.tr(
-                [c.h.Key(`row${i}`), c.h.Class('border-t border-border')],
+                [c.h.Key(`row${i}`), c.h.Class('border-t-2 border-[var(--line)]')],
                 r.flatMap((e, k) => [
-                  c.h.td([c.h.Key(`t${k}`), c.h.Class('px-3 py-1.5')], jp(c.h, e.term)),
+                  c.h.td([c.h.Key(`t${k}`), c.h.Class('px-3 py-2 font-bold')], jp(c.h, e.term)),
                   c.h.td(
-                    [c.h.Key(`r${k}`), c.h.Class('px-3 py-1.5 text-muted-foreground')],
+                    [c.h.Key(`r${k}`), c.h.Class('px-3 py-2 text-[var(--mute)]')],
                     jp(c.h, e.reading),
                   ),
                 ]),
@@ -296,17 +265,17 @@ const tableView = (c: Ctx, tb: Table): Child =>
 
 const bubbles = (c: Ctx, t: Task): Child =>
   c.h.div(
-    [c.h.Class('my-3 grid grid-cols-1 gap-2 sm:grid-cols-2')],
+    [c.h.Class('mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2')],
     (t.practice ?? []).map((b, i) =>
       c.h.div(
         [
           c.h.Key(`bubble${i}`),
           c.h.Class(
             cn(
-              'rounded-2xl border px-3.5 py-2 text-[15px]',
+              'rounded-3xl border-2 border-b-4 px-4 py-2.5 text-[18px]',
               b.side === 'a'
-                ? 'border-amber-300/70 bg-amber-50 sm:col-start-1'
-                : 'border-orange-300/70 bg-orange-50 sm:col-start-2',
+                ? 'border-[#ffe08a] bg-[#fff6cf] sm:col-start-1'
+                : 'border-[#ffc89c] bg-[#ffe8d4] sm:col-start-2',
             ),
           ),
         ],
@@ -315,7 +284,7 @@ const bubbles = (c: Ctx, t: Task): Child =>
             [
               c.h.Key(`l${k}`),
               c.h.Class(
-                cn('py-0.5 leading-loose', k > 0 && 'border-t border-dashed border-orange-300/70'),
+                cn('py-1 leading-loose', k > 0 && 'border-t-2 border-dashed border-[#ffc89c]'),
               ),
             ],
             jp(c.h, l),
@@ -330,20 +299,20 @@ const gridView = (c: Ctx, t: Task, key: string): Child => {
   if (!g) return c.h.empty
   const rows = g.rows.length ? g.rows : [undefined]
   return c.h.div(
-    [c.h.Class('mt-2 overflow-x-auto rounded-lg border border-border')],
+    [c.h.Class('mt-3 overflow-x-auto rounded-2xl border-2 border-[var(--line)] bg-white')],
     [
       c.h.table(
-        [c.h.Class('w-full border-collapse text-[15px]')],
+        [c.h.Class('w-full border-collapse text-[17px]')],
         [
           c.h.thead(
             [],
             [
               c.h.tr(
-                [c.h.Class('bg-muted')],
+                [c.h.Class('bg-[var(--cs)]')],
                 [
                   c.h.th([], []),
                   ...g.columns.map((col) =>
-                    c.h.th([c.h.Class('px-3 py-1.5 text-left font-medium')], jp(c.h, col)),
+                    c.h.th([c.h.Class('px-3 py-2 text-left font-bold')], jp(c.h, col)),
                   ),
                 ],
               ),
@@ -353,12 +322,12 @@ const gridView = (c: Ctx, t: Task, key: string): Child => {
             [],
             rows.map((r, i) =>
               c.h.tr(
-                [c.h.Key(`g${i}`), c.h.Class('border-t border-border')],
+                [c.h.Key(`g${i}`), c.h.Class('border-t-2 border-[var(--line)]')],
                 [
-                  c.h.th([c.h.Class('px-3 py-1.5 text-left font-medium')], r ? jp(c.h, r) : []),
+                  c.h.th([c.h.Class('px-3 py-2 text-left font-bold')], r ? jp(c.h, r) : []),
                   ...g.columns.map((_, k) =>
                     c.h.td(
-                      [c.h.Key(`c${k}`), c.h.Class('px-2 py-1')],
+                      [c.h.Key(`c${k}`), c.h.Class('px-2 py-1.5')],
                       [textInput(c, `${key}.g${i}.${k}`, 'w-full min-w-24')],
                     ),
                   ),
@@ -380,17 +349,16 @@ const bodyView = (c: Ctx, t: Task, key: string): Child => {
     q.items.forEach((it) => it.questions.forEach((x) => x.prompt && used.add(plain(x.prompt))))
   const blocks = t.body.filter((b: Block) => !(b.ja && used.has(plain(b.ja))))
   if (blocks.length === 0) return c.h.empty
-  const intro = t.number === 0
   return c.h.div(
-    [c.h.Class(cn('mt-2 flex flex-col gap-1.5', intro && 'text-[15px]'))],
+    [c.h.Class('mt-4 flex flex-col gap-2')],
     blocks.map((b, i) => {
       const k = `${key}.b${i}`
       const on = has(c.model.revealed, k)
       return c.h.div(
-        [c.h.Key(k), c.h.Class('flex flex-col gap-1')],
+        [c.h.Key(k), c.h.Class('flex flex-col gap-1.5')],
         [
           c.h.div(
-            [c.h.Class('flex items-start gap-2 text-[15px] leading-relaxed')],
+            [c.h.Class('flex items-start gap-2.5 text-[18px] leading-relaxed')],
             [
               t.response === 'check' && b.ja
                 ? c.h.button(
@@ -401,14 +369,14 @@ const bodyView = (c: Ctx, t: Task, key: string): Child => {
                       c.h.OnClick(Message.ToggledReveal({ key: k })),
                       c.h.Class(
                         cn(
-                          'mt-1 grid size-5 shrink-0 place-items-center rounded border',
+                          'mt-1 grid size-7 shrink-0 place-items-center rounded-lg border-2 border-b-4 transition-colors',
                           on
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-background',
+                            ? 'border-[#46a302] bg-[#58cc02] text-white'
+                            : 'border-[var(--line)] bg-white',
                         ),
                       ),
                     ],
-                    [on ? icon(c.h, Check, 'size-3.5') : c.h.empty],
+                    [on ? icon(c.h, Check, 'size-4') : c.h.empty],
                   )
                 : c.h.empty,
               c.h.span([], jp(c.h, b.ja)),
@@ -426,36 +394,28 @@ const vocabView = (c: Ctx, t: Task): Child =>
   t.vocab.length === 0
     ? c.h.empty
     : c.h.div(
-        [c.h.Class('mt-2 flex flex-wrap gap-1.5')],
+        [c.h.Class('mt-4 flex flex-wrap gap-2.5')],
         t.vocab.map((v, i) =>
           c.h.span(
+            [c.h.Key(`v${i}`), c.h.Class('card3d inline-flex flex-col px-3.5 py-2 leading-tight')],
             [
-              c.h.Key(`v${i}`),
-              c.h.Class(
-                'inline-flex items-baseline gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-[15px]',
-              ),
-            ],
-            [
-              c.h.span([], jp(c.h, v.ja)),
-              c.h.span([c.h.Class('text-[12px] text-muted-foreground')], [v.en]),
+              c.h.span([c.h.Class('text-[20px] font-bold')], jp(c.h, v.ja)),
+              c.h.span([c.h.Class('text-[13px] text-[var(--mute)]')], [v.en]),
             ],
           ),
         ),
       )
 
-/** A picture vocabulary list: the choices are labelled pictures, not an exercise. */
 const pictures = (c: Ctx, t: Task, key: string): Child =>
   c.h.div(
-    [c.h.Class('mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4')],
+    [c.h.Class('mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3')],
     t.choices
       .flat()
       .map((o) =>
         c.h.div(
           [
             c.h.Key(`${key}.${o.label}`),
-            c.h.Class(
-              'flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card p-2.5 text-center',
-            ),
+            c.h.Class('card3d flex flex-col items-center gap-2 p-3 text-center'),
           ],
           [
             o.image
@@ -463,61 +423,61 @@ const pictures = (c: Ctx, t: Task, key: string): Child =>
                   c.h.Src(lessonUrl(c.lesson.number, o.image)),
                   c.h.Alt(plain(o.ja)),
                   c.h.Loading('lazy'),
-                  c.h.Class('h-24 w-auto object-contain'),
+                  c.h.Class('h-28 w-auto object-contain'),
                 ])
               : c.h.empty,
             c.h.span(
-              [c.h.Class('text-[15px] leading-snug')],
+              [c.h.Class('text-[18px] leading-snug font-bold')],
               [
                 c.h.span(
-                  [c.h.Class('mr-1 font-mono text-[12px] text-muted-foreground')],
-                  [`${o.label}.`],
+                  [
+                    c.h.Class(
+                      'mr-1.5 inline-grid size-6 place-items-center rounded-lg border-2 border-[var(--line)] align-middle text-[12px]',
+                    ),
+                  ],
+                  [o.label],
                 ),
                 ...jp(c.h, o.ja),
               ],
             ),
-            en(c.h, o.en, 'text-[12px]'),
+            en(c.h, o.en),
           ],
         ),
       ),
   )
 
-export const taskView = (c: Ctx, t: Task, key: string, depth = 0): Html => {
+/** One exercise. `flat` leaves its sub-questions to the player, which shows them as exercises of their own. */
+export const taskView = (c: Ctx, t: Task, key: string, flat = true): Html => {
   const { h } = c
   const hasQuiz = t.quiz !== undefined
   const label = t.kind ? KIND[t.kind] : undefined
-  const head =
-    t.number === 0
-      ? h.empty
-      : h.div(
-          [h.Class('flex flex-wrap items-center gap-x-2.5 gap-y-1.5')],
-          [
-            h.span([h.Class('font-mono text-[12px] text-muted-foreground')], [`(${t.number})`]),
-            h.span([h.Class('text-[16px] leading-snug font-medium')], jp(h, t.instruction)),
-            label ? badge({ variant: 'secondary' }, [label], h) : h.empty,
-            hasQuiz ? h.empty : plays(c, t.audio),
-          ],
-        )
   return h.div(
+    [h.Key(key), h.Class('flex flex-col')],
     [
-      h.Key(key),
-      h.Class(
-        cn(
-          'flex flex-col py-3',
-          depth > 0
-            ? 'ml-4 border-l-2 border-border pl-4'
-            : 'border-t border-border first:border-t-0',
-        ),
+      label ? h.div([h.Class('mb-2')], [h.span([h.Class('chip')], [label])]) : h.empty,
+      t.instruction.text
+        ? h.h2(
+            [h.Class('text-[24px] leading-snug font-black sm:text-[28px]')],
+            jp(h, t.instruction),
+          )
+        : h.empty,
+      en(h, t.instruction_en, 'mt-1 text-[15px]'),
+      h.div(
+        [h.Class('mt-3')],
+        [hasQuiz && t.quiz?.type === 'choose' ? h.empty : plays(c, t.audio)],
       ),
-    ],
-    [
-      head,
-      t.number === 0 ? h.empty : en(h, t.instruction_en, 'mt-0.5'),
-      hasQuiz && t.quiz?.type === 'fill' ? plays(c, t.audio) : h.empty,
+      t.quiz?.type === 'choose' ? h.div([h.Class('mt-1')], [plays(c, t.audio)]) : h.empty,
       t.practice?.length ? bubbles(c, t) : h.empty,
-      !hasQuiz && t.choices.length && t.kind === 'words' ? pictures(c, t, key) : h.empty,
+      !hasQuiz && t.choices.length && (t.kind === 'words' || t.number === 0)
+        ? pictures(c, t, key)
+        : h.empty,
       !hasQuiz && t.grid ? gridView(c, t, key) : h.empty,
-      ...t.dialogues.map((d, i) => dialogueView(c, d, `${key}.d${i}`)),
+      t.dialogues.length
+        ? h.div(
+            [h.Class('mt-4 flex flex-col gap-5')],
+            t.dialogues.map((d, i) => dialogueView(c, d, `${key}.d${i}`)),
+          )
+        : h.empty,
       vocabView(c, t),
       ...(t.tables ?? []).map((tb) => tableView(c, tb)),
       t.quiz?.type === 'choose' ? chooseQuiz(c, t.quiz, key) : h.empty,
@@ -525,11 +485,13 @@ export const taskView = (c: Ctx, t: Task, key: string, depth = 0): Html => {
       bodyView(c, t, key),
       ...(t.hints ?? []).map((b, i) =>
         h.div(
-          [h.Key(`${key}.h${i}`), h.Class('mt-2 rounded-lg bg-muted px-3 py-2 text-[14px]')],
-          [h.div([], jp(h, b.ja)), en(h, b.en)],
+          [h.Key(`${key}.h${i}`), h.Class('mt-4 rounded-2xl bg-[var(--cs)] px-4 py-3 text-[16px]')],
+          [h.div([h.Class('font-bold')], jp(h, b.ja)), en(h, b.en)],
         ),
       ),
-      ...(t.subtasks ?? []).map((s, i) => taskView(c, s, `${key}.${s.number}-${i}`, depth + 1)),
+      ...(flat
+        ? []
+        : (t.subtasks ?? []).map((s, i) => taskView(c, s, `${key}.${s.number}-${i}`, flat))),
     ],
   )
 }

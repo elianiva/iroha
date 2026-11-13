@@ -1,34 +1,44 @@
 import { Message } from '../app/state.ts'
-import { badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { Note, Pair, RefSection } from '../data/types.ts'
 import { type Child, type Ctx, en, has, jp, plain } from '../ui/common.ts'
+
+/** A small colour chip; the local stand-in for the foldcn badge so notes match the rest of the app. */
+const badge = (_config: unknown, children: ReadonlyArray<Child>, h: Ctx['h']): Child =>
+  h.span([h.Class('chip')], children)
 
 const pill = (c: Ctx, p: Pair): Child =>
   c.h.span(
     [
       c.h.Class(
-        'inline-flex items-baseline gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[15px]',
+        'inline-flex items-baseline gap-1 rounded-md border border-[var(--line)] bg-white px-2 py-0.5 text-[15px]',
       ),
     ],
     [
       ...jp(c.h, p.from),
-      c.h.span([c.h.Class('text-muted-foreground')], ['→']),
+      c.h.span([c.h.Class('text-[var(--mute)]')], ['→']),
       ...jp(c.h, p.to),
       p.from_note
-        ? c.h.span([c.h.Class('text-[11px] text-muted-foreground')], [`(${p.from_note})`])
+        ? c.h.span([c.h.Class('text-[11px] text-[var(--mute)]')], [`(${p.from_note})`])
         : c.h.empty,
-      p.note ? c.h.span([c.h.Class('text-[11px] text-muted-foreground')], [p.note]) : c.h.empty,
+      p.note ? c.h.span([c.h.Class('text-[11px] text-[var(--mute)]')], [p.note]) : c.h.empty,
     ],
   )
 
 const th = (c: Ctx, children: ReadonlyArray<Child>): Child =>
   c.h.th(
-    [c.h.Class('border border-border bg-muted px-3 py-1.5 text-left text-[13px] font-medium')],
+    [
+      c.h.Class(
+        'border-2 border-[var(--line)] bg-[var(--cs)] px-3 py-1.5 text-left text-[13px] font-black',
+      ),
+    ],
     children,
   )
 const td = (c: Ctx, children: ReadonlyArray<Child>): Child =>
-  c.h.td([c.h.Class('border border-border px-3 py-1.5 align-top text-[15px]')], children)
+  c.h.td(
+    [c.h.Class('border-2 border-[var(--line)] bg-white px-3 py-1.5 align-top text-[15px]')],
+    children,
+  )
 const wrap = (c: Ctx, table: Child): Child =>
   c.h.div(
     [c.h.Class('my-2 overflow-x-auto')],
@@ -46,7 +56,7 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
         : h.empty,
       ...(s.groups ?? []).map((g) =>
         h.div(
-          [h.Key(`g${g.group}`), h.Class('rounded-lg border border-border p-3')],
+          [h.Key(`g${g.group}`), h.Class('rounded-lg border border-[var(--line)] p-3')],
           [
             h.div(
               [h.Class('mb-1 flex flex-wrap items-baseline gap-2')],
@@ -56,7 +66,7 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
               ],
             ),
             h.p(
-              [h.Class('text-[14px] text-muted-foreground')],
+              [h.Class('text-[14px] text-[var(--mute)]')],
               [...jp(h, g.stem_ja), ' ', ...jp(h, g.rule_ja)],
             ),
             h.div(
@@ -114,7 +124,7 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
                           [
                             ...jp(h, e.ja),
                             e.en
-                              ? h.span([h.Class('ml-2 text-[12px] text-muted-foreground')], [e.en])
+                              ? h.span([h.Class('ml-2 text-[12px] text-[var(--mute)]')], [e.en])
                               : h.empty,
                           ],
                         ),
@@ -138,7 +148,7 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
                     td(c, [
                       ...jp(h, cell.ja),
                       cell.en
-                        ? h.span([h.Class('ml-2 text-[12px] text-muted-foreground')], [cell.en])
+                        ? h.span([h.Class('ml-2 text-[12px] text-[var(--mute)]')], [cell.en])
                         : h.empty,
                     ]),
                   ),
@@ -192,7 +202,7 @@ const section = (c: Ctx, s: RefSection, key: string): Child => {
       ),
       s.footnote
         ? h.div(
-            [h.Class('text-[13px] text-muted-foreground')],
+            [h.Class('text-[13px] text-[var(--mute)]')],
             [...jp(h, s.footnote.ja), ' ', s.footnote.en ?? ''],
           )
         : h.empty,
@@ -204,7 +214,7 @@ export const noteCard = (c: Ctx, n: Note, i: number): Child => {
   const { h } = c
   const key = `note${i}`
   return h.section(
-    [h.Key(key), h.Id(key), h.Class('rounded-xl border border-border bg-card p-4 sm:p-5')],
+    [h.Key(key), h.Id(key), h.Class('card3d p-5')],
     [
       h.div(
         [h.Class('mb-2 flex flex-wrap items-center gap-2')],
@@ -227,7 +237,7 @@ export const noteCard = (c: Ctx, n: Note, i: number): Child => {
         ? h.div(
             [
               h.Class(
-                'mb-2 inline-block rounded-md border-2 border-primary px-3 py-1.5 font-semibold',
+                'mb-2 inline-block rounded-md border-2 border-[var(--c)] px-3 py-1.5 font-semibold',
               ),
             ],
             n.pattern.map((p) => h.div([], jp(h, p))),
@@ -246,11 +256,11 @@ export const noteCard = (c: Ctx, n: Note, i: number): Child => {
               h.li(
                 [
                   h.Key(`p${k}`),
-                  h.Class('border-l-2 border-border pl-3 text-[14px] leading-relaxed'),
+                  h.Class('border-l-2 border-[var(--line)] pl-3 text-[14px] leading-relaxed'),
                 ],
                 [
                   h.div([], [p.en]),
-                  p.ja ? h.div([h.Class('text-muted-foreground')], jp(h, p.ja)) : h.empty,
+                  p.ja ? h.div([h.Class('text-[var(--mute)]')], jp(h, p.ja)) : h.empty,
                 ],
               ),
             ),
@@ -258,7 +268,7 @@ export const noteCard = (c: Ctx, n: Note, i: number): Child => {
         : h.empty,
       ...n.examples.map((e, k) =>
         h.div(
-          [h.Key(`e${k}`), h.Class('mt-3 rounded-lg bg-muted/50 px-3 py-2')],
+          [h.Key(`e${k}`), h.Class('mt-3 rounded-lg bg-[var(--cs)] px-3 py-2')],
           e.turns.map((t, j) =>
             h.div(
               [h.Key(`t${j}`), h.Class('py-0.5')],
@@ -297,8 +307,10 @@ export const kanjiView = (c: Ctx): Child => {
               h.OnClick(Message.ToggledReveal({ key })),
               h.Class(
                 cn(
-                  'flex min-h-24 items-center justify-center rounded-xl border p-3 text-center text-3xl transition-colors',
-                  flipped ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-muted',
+                  'card3d flex min-h-28 items-center justify-center p-3 text-center text-4xl font-black transition-colors',
+                  flipped
+                    ? 'border-[var(--c)] bg-[var(--cs)]'
+                    : 'border-[var(--line)] bg-white hover:bg-[var(--cs)]',
                 ),
               ),
             ],
@@ -306,10 +318,7 @@ export const kanjiView = (c: Ctx): Child => {
           )
         }),
       ),
-      h.p(
-        [h.Class('-mt-3 text-[12px] text-muted-foreground')],
-        ['Tap a card to show its reading.'],
-      ),
+      h.p([h.Class('-mt-3 text-[12px] text-[var(--mute)]')], ['Tap a card to show its reading.']),
       h.div(
         [h.Class('flex flex-col gap-2')],
         [
@@ -319,7 +328,7 @@ export const kanjiView = (c: Ctx): Child => {
               [
                 h.Key(`s${i}`),
                 h.Class(
-                  'rounded-lg border border-border bg-card px-3 py-2 text-[16px] leading-loose',
+                  'rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-[16px] leading-loose',
                 ),
               ],
               plain(s)

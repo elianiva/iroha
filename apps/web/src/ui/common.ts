@@ -33,7 +33,7 @@ export const jp = (h: HtmlBuilder<Message>, t: Text | undefined): ReadonlyArray<
 /** A muted English line. */
 export const en = (h: HtmlBuilder<Message>, text: string | undefined, className = ''): Child =>
   text
-    ? h.p([h.Class(cn('text-[13px] leading-snug text-muted-foreground', className))], [text])
+    ? h.p([h.Class(cn('text-[14px] leading-snug text-[var(--mute)]', className))], [text])
     : h.empty
 
 /** A round button that plays one track of the lesson, and stops it when pressed again. */
@@ -49,16 +49,9 @@ export const playButton = (c: Ctx, id: string): Child => {
       h.AriaPressed(on ? 'true' : 'false'),
       h.AriaLabel(`${on ? 'Stop' : 'Play'} ${file.kind} ${id}`),
       h.OnClick(Msg.ClickedPlay({ id, url: lessonUrl(lesson.number, `audio/${file.file}`) })),
-      h.Class(
-        cn(
-          'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 font-mono text-[11px] font-medium transition-colors',
-          on
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-border bg-background text-foreground hover:bg-muted',
-        ),
-      ),
+      h.Class(cn('play', on && 'on')),
     ],
-    [icon(h, on ? Square : Play, 'size-3 fill-current'), id],
+    [icon(h, on ? Square : Play, 'size-3.5 fill-current'), id],
   )
 }
 
