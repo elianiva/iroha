@@ -8,7 +8,7 @@ import { liveStreak } from '../app/progress-schema.ts'
 import { chapterClass } from '../ui/theme.ts'
 import { type Child, en, jp } from '../ui/common.ts'
 import { lessonHref, sectionLabel } from './lessonlinks.ts'
-import { flatPages, pathNode } from './path.ts'
+import { flatPages, lessonStop, pathNode } from './path.ts'
 
 type H = HtmlBuilder<Message>
 
@@ -98,77 +98,46 @@ export const homePage = (model: Model, h: H, index: BookIndex): Child => {
   )
 
   const path = h.div(
-    [h.Class('flex flex-col gap-10')],
-    index.chapters.map((chapter) => {
-      let at = 0
-      return h.section(
+    [h.Class('flex flex-col gap-12')],
+    index.chapters.map((chapter) =>
+      h.section(
         [h.Key(`ch${chapter.number}`), h.Class(chapterClass(chapter.number))],
         [
           h.div(
+            [h.Class('line-head')],
             [
-              h.Class(
-                'sticky top-[4.6rem] z-10 flex items-center gap-4 rounded-3xl bg-[var(--c)] px-5 py-4 text-white shadow-[0_5px_0_var(--cd)]',
-              ),
-            ],
-            [
-              h.span(
-                [h.Class('display text-[2.4rem] leading-none opacity-90')],
-                [String(chapter.number)],
-              ),
+              h.span([h.Class('line-badge display')], [String(chapter.number)]),
               h.div(
                 [h.Class('flex min-w-0 flex-col leading-tight')],
                 [
-                  h.span(
-                    [h.Class('text-[11px] font-black tracking-widest uppercase opacity-90')],
-                    [`Chapter ${chapter.number}`],
-                  ),
-                  h.span([h.Class('truncate text-[21px] font-black')], [chapter.topic.ja]),
-                  h.span([h.Class('text-[13px] opacity-90')], [chapter.topic.en]),
+                  h.span([h.Class('truncate text-[20px] font-black')], [chapter.topic.ja]),
+                  h.span([h.Class('text-[13px] font-bold opacity-80')], [chapter.topic.en]),
                 ],
               ),
             ],
           ),
-          ...chapter.lessons.map((lesson) =>
-            h.div(
-              [h.Key(`l${lesson.number}`), h.Class('mt-6')],
-              [
-                h.a(
-                  [
-                    h.Href(lessonHref(lesson.number)),
-                    h.Class(
-                      'card3d mx-auto mb-7 flex max-w-sm flex-col items-center gap-0.5 px-4 py-3 text-center',
-                    ),
-                  ],
-                  [
-                    h.span(
-                      [h.Class('text-[11px] font-black tracking-widest text-[var(--c)] uppercase')],
-                      [`Lesson ${lesson.number}`],
-                    ),
-                    h.span([h.Class('text-[17px] leading-snug font-black')], [lesson.title.ja]),
-                    en(h, lesson.title.en),
-                  ],
-                ),
-                ...lesson.sections.map((s) => {
-                  const state = pages.find((p) => p.n === lesson.number && p.s.id === s.id)?.done
-                    ? 'done'
-                    : current && current.n === lesson.number && current.s.id === s.id
-                      ? 'current'
-                      : 'todo'
-                  const node = pathNode(h, lesson.number, s, state, at)
-                  at += 1
-                  return node
-                }),
-              ],
-            ),
+          h.div(
+            [h.Class('line-track')],
+            chapter.lessons.flatMap((lesson) => [
+              lessonStop(h, lesson),
+              ...lesson.sections.map((s) => {
+                const state = pages.find((p) => p.n === lesson.number && p.s.id === s.id)?.done
+                  ? 'done'
+                  : current && current.n === lesson.number && current.s.id === s.id
+                    ? 'current'
+                    : 'todo'
+                return pathNode(h, lesson.number, s, state)
+              }),
+            ]),
           ),
         ],
-      )
-    }),
+      ),
+    ),
   )
 
   return h.div(
     [h.Class('mx-auto grid max-w-5xl gap-10 px-4 pt-6 pb-24 lg:grid-cols-[minmax(0,1fr)_20rem]')],
-    [h.div([h.Class('mx-auto w-full max-w-md')], [path]), rail],
+    [h.div([h.Class('mx-auto w-full max-w-lg')], [path]), rail],
   )
 }
 

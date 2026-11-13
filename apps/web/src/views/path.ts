@@ -21,59 +21,73 @@ export const flatPages = (
     l.sections.map((s) => ({ n: l.number, s, done: isDone(model, l.number, s.id) })),
   )
 
-const OFFSETS = [0, 46, 70, 46, 0, -46, -70, -46]
+const glyph = (h: H, s: SectionInfo): Child =>
+  s.kind === 'activity'
+    ? icon(h, Star, 'size-3.5 fill-current')
+    : s.kind === 'kanji'
+      ? h.span([h.Class('display text-[11px] leading-none')], ['漢'])
+      : s.kind === 'grammar'
+        ? icon(h, BookOpen, 'size-3.5')
+        : icon(h, Headphones, 'size-3.5')
 
-const glyph = (h: H, s: SectionInfo, done: boolean): Child =>
-  done
-    ? icon(h, Check, 'size-8 stroke-[4]')
-    : s.kind === 'activity'
-      ? icon(h, Star, 'size-8 fill-current')
-      : s.kind === 'kanji'
-        ? h.span([h.Class('display text-[1.6rem] leading-none')], ['漢'])
-        : s.kind === 'grammar'
-          ? icon(h, BookOpen, 'size-7')
-          : icon(h, Headphones, 'size-7')
+/** A lesson is an interchange: the big double-ringed stop where its pages branch off the line. */
+export const lessonStop = (h: H, lesson: LessonSummary): Child =>
+  h.a(
+    [h.Key(`l${lesson.number}`), h.Href(lessonHref(lesson.number)), h.Class('stn stn-hub')],
+    [
+      h.span(
+        [h.Class('stn-dot hub')],
+        [h.span([h.Class('display text-[1.15rem]')], [String(lesson.number)])],
+      ),
+      h.span(
+        [h.Class('stn-card flex flex-col gap-0.5')],
+        [
+          h.span(
+            [h.Class('text-[11px] font-black tracking-widest text-[var(--c)] uppercase')],
+            [`Lesson ${lesson.number}`],
+          ),
+          h.span([h.Class('text-[18px] leading-snug font-black')], [lesson.title.ja]),
+          h.span([h.Class('text-[13px] text-[var(--mute)]')], [lesson.title.en]),
+        ],
+      ),
+    ],
+  )
 
-const nodeTitle = (h: H, s: SectionInfo): ReadonlyArray<Child> =>
-  s.kind === 'activity' && s.title ? jp(h, s.title) : [sectionLabel(s)]
-
-/** One stop on the path. A finished stop is solid with a check, the next one is ringed and says START, the rest are outlined. */
+/** One station on a lesson's line. Finished stops are filled, the next one pulses and says YOU ARE HERE, the rest are hollow. */
 export const pathNode = (
   h: H,
   n: number,
   s: SectionInfo,
   state: 'done' | 'current' | 'todo',
-  at: number,
-): Child => {
-  const x = OFFSETS[at % OFFSETS.length] ?? 0
-  return h.div(
-    [h.Key(`${n}.${s.id}`), h.Class('flex justify-center py-2.5')],
+): Child =>
+  h.a(
     [
-      h.div(
-        [h.Class('relative'), h.Style({ transform: `translateX(${x}px)` })],
+      h.Key(`${n}.${s.id}`),
+      h.Href(lessonHref(n, s.id)),
+      h.AriaLabel(`${sectionLabel(s)}${state === 'done' ? ', done' : ''}`),
+      h.Class(cn('stn', state)),
+    ],
+    [
+      h.span(
+        [h.Class('stn-dot')],
+        [state === 'done' ? icon(h, Check, 'size-4 stroke-[5]') : h.empty],
+      ),
+      h.span(
+        [h.Class('stn-label')],
         [
-          state === 'current' ? h.div([h.Class('start-bubble')], ['START']) : h.empty,
-          h.a(
-            [
-              h.Href(lessonHref(n, s.id)),
-              h.AriaLabel(`${sectionLabel(s)}${state === 'done' ? ', done' : ''}`),
-              h.Class(cn('node', state === 'current' && 'current', state === 'todo' && 'todo')),
-            ],
-            [glyph(h, s, state === 'done')],
-          ),
+          state === 'current' ? h.span([h.Class('here')], ['YOU ARE HERE']) : h.empty,
           h.span(
             [
               h.Class(
-                cn(
-                  'pointer-events-none absolute top-1/2 line-clamp-2 w-[8rem] -translate-y-1/2 text-[13px] leading-tight font-bold text-[var(--mute)]',
-                  x > 0 ? 'right-full mr-5 text-right' : 'left-full ml-5',
-                ),
+                'flex items-center gap-1.5 text-[11px] font-black tracking-widest text-[var(--mute)] uppercase',
               ),
             ],
-            nodeTitle(h, s),
+            [glyph(h, s), sectionLabel(s)],
           ),
+          s.kind === 'activity' && s.title
+            ? h.span([h.Class('text-[16px] leading-snug font-bold')], jp(h, s.title))
+            : h.empty,
         ],
       ),
     ],
   )
-}
