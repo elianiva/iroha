@@ -14,7 +14,7 @@ static CAN_DO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d\d)(\D.*)?$")
 static EXAMPLE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?:［\s*例\s*］)?\s*(?:▶)?\s*([①-⑩])?\s*(?:([Ａ-Ｃ])\s*：)?\s*(.*)$").unwrap()
 });
-static CHOICE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:^|\s|[^\x00-\x7f])([a-iア-ク])\s?\.\s*").unwrap());
+static CHOICE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:^|\s|[^\x00-\x7f])([a-iA-Dア-ク])\s?\.\s*").unwrap());
 
 enum Item {
     Line { text: Text, size: f32, x: f32, y: f32, page: usize },
@@ -132,6 +132,7 @@ enum Slot {
     Instr,
     Block,
     NoteTitle,
+    Choice,
     Point,
     JaPoint,
     Example,
@@ -501,7 +502,7 @@ impl Builder {
                 _ => task.choices.push(row),
             }
             self.choice_at = Some(at);
-            self.slot = Slot::None;
+            self.slot = Slot::Choice;
             return;
         }
 
@@ -511,6 +512,13 @@ impl Builder {
                 Slot::Block => {
                     if let Some(b) = task.body.last_mut() {
                         join(&mut b.en, &body.text);
+                    }
+                }
+                // An English gloss printed under a choice, such as `Hobbies and favorite activities to do`.
+                Slot::Choice => {
+                    if let Some(c) = task.choices.last_mut().and_then(|r| r.last_mut()) {
+                        let en = c.en.get_or_insert_with(String::new);
+                        join(en, &body.text);
                     }
                 }
                 Slot::StepTitle => {
@@ -684,8 +692,18 @@ fn classify(t: &Task) -> &'static str {
         "vocab"
     } else if s.contains("練習しましょう") || s.contains("ことばをかえて") {
         "practice"
-    } else if s.contains("話しましょう") || s.contains("設定") {
+    } else if s.contains("ロールプレイ") || s.contains("話しましょう") || s.contains("設定") || s.contains("説明しましょう") || s.contains("相談") || s.contains("案内しましょう") {
         "speak"
+    } else if s.contains("メモ") {
+        "note"
+    } else if s.contains("印をつけ") || s.contains("チェック") || s.contains("〇") || s.contains("×") {
+        "mark"
+    } else if s.contains("読みましょう") || s.contains("読んで") {
+        "read"
+    } else if s.contains("書きましょう") || s.contains("記入") {
+        "write"
+    } else if s.contains("ですか") || s.contains("ますか") || s.contains("考え") {
+        "answer"
     } else if s.contains("聞きましょう") {
         "listen"
     } else {
@@ -730,10 +748,9 @@ fn quiz_choose(task: &Task, inherited: &[Choice]) -> Option<Quiz> {
     } else {
         task.choices.clone()
     };
-    let n = task.audio.len();
-    if n == 0 {
-        return None;
-    }
+    // Reading tasks have no track; one item without audio.
+    let ids: Vec<String> = if task.audio.is_empty() { vec![String::new()] } else { task.audio.clone() };
+    let n = ids.len();
     // Text printed beside the answer grid, such as the row label `何をしている？`, asks the question.
     let mut prompt: Option<Text> = None;
     for t in task.body.iter().filter_map(|b| b.ja.as_ref()) {
@@ -745,8 +762,7 @@ fn quiz_choose(task: &Task, inherited: &[Choice]) -> Option<Quiz> {
             None => prompt = Some(t.clone()),
         }
     }
-    let items = task
-        .audio
+    let items = ids
         .iter()
         .enumerate()
         .map(|(i, id)| {
@@ -773,9 +789,9 @@ fn find_answers(parts: &[Text], scripts: &[Dialogue]) -> Vec<Vec<Text>> {
         let hay = &turn.text.text;
         let mut at = 0;
         let mut cuts: Vec<(usize, usize)> = Vec::new();
-        for (i, p) in parts.iter().enumerate() {
+        for p in parts {
             let rest = &hay[at..];
-            let pos = if i > 0 && i == parts.len() - 1 { rest.rfind(&p.text) } else { rest.find(&p.text) };
+            let pos = rest.find(&p.text);
             let Some(pos) = pos else { break };
             cuts.push((at + pos, at + pos + p.text.len()));
             at += pos + p.text.len();
